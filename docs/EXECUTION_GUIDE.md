@@ -25,7 +25,7 @@ Follow these steps in exact order.
 
 Before anything else, get these:
 
-1. **OpenAI API key** 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
+1. **OpenAI API key** 
 
    * Go to platform.openai.com
    * Create account → API Keys → Create new key
