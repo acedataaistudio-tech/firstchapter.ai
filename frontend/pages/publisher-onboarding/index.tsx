@@ -99,14 +99,14 @@ export default function PublisherOnboarding() {
     setLoading(true);
     try {
       await user?.update({
-        publicMetadata: {
-          role:          "publisher",
-          publisherType,
-          onboarded:     true,
-          payoutSetup:   true,
-          agreementDate: new Date().toISOString(),
-        }
-      });
+  unsafeMetadata: {
+    role:          "publisher",
+    publisherType,
+    onboarded:     true,
+    payoutSetup:   true,
+    agreementDate: new Date().toISOString(),
+  }
+});
     } catch (e) {
       console.error(e);
     }
