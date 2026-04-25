@@ -61,7 +61,7 @@ export default function OnboardingPage() {
 
     setLoading(false);
 
-    if (selectedRole === "publisher")   router.push("/publisher");
+    if (selectedRole === "publisher") router.push("/publisher-onboarding");
     if (selectedRole === "institution") router.push("/institution");
     if (selectedRole === "student")     router.push("/");
   };
