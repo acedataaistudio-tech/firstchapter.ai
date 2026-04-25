@@ -42,29 +42,29 @@ export default function OnboardingPage() {
     setStep(2);
   };
 
-  const handleSubmit = async () => {
+ const handleSubmit = async () => {
     if (!selectedRole || !name) return;
     setLoading(true);
 
     try {
       await user?.update({
         firstName: name,
-        publicMetadata: {
+        unsafeMetadata: {
           role:         selectedRole,
           organisation: organisation,
           onboarded:    true,
         }
       });
     } catch (e) {
-      console.error("Metadata update failed:", e);
+      console.error("Onboarding error:", e);
     }
 
     setLoading(false);
 
-    if (selectedRole === "publisher") router.push("/publisher-onboarding");
+    if (selectedRole === "publisher")   router.push("/publisher-onboarding");
     if (selectedRole === "institution") router.push("/institution");
     if (selectedRole === "student")     router.push("/");
-  };
+};
 
   return (
     <div style={{
