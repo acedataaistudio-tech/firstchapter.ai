@@ -45,13 +45,6 @@ function LandingPage() {
     },
   ];
 
- # const stats = [
-  #  { value: "10,000+", label: "Licensed books"      },
-   # { value: "50+",     label: "Institutions"         },
-    #{ value: "1M+",     label: "Queries answered"     },
-    #{ value: "₹0.50",  label: "Per query to authors" },
-  #];
-
   const features = [
     { icon: "🔍", title: "Discover by topic",     description: "Search any topic and instantly find the most relevant licensed books that cover it deeply." },
     { icon: "💬", title: "Ask the book",           description: "Have a full conversation with any book. Get cited answers from specific chapters." },
@@ -142,19 +135,6 @@ function LandingPage() {
           Free to start · No credit card required · 10 free queries every month
         </p>
       </section>
-
-      #{/* Stats bar */}
-      #<section style={{
-       # background: "#2C2C2A", padding: "40px 24px",
-        #display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "20px",
-      #}}>
-       # {stats.map((stat, i) => (
-        #  <div key={i} style={{ textAlign: "center" }}>
-         #   <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(24px, 5vw, 36px)", color: "#1D9E75", margin: "0 0 4px" }}>{stat.value}</p>
-          #  <p style={{ fontSize: "13px", color: "#888780", margin: 0 }}>{stat.label}</p>
-          #</div>
-        #))}
-      #</section>
 
       {/* Three roles */}
       <section style={{ padding: "60px 24px", background: "#f9f9f7" }}>
