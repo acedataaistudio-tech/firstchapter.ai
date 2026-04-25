@@ -26,3 +26,68 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* ── Mobile Responsive ─────────────────────────────────── */
+
+@media (max-width: 768px) {
+
+  /* Landing page — hero */
+  section h1 {
+    font-size: 42px !important;
+    letter-spacing: -1px !important;
+  }
+
+  section p {
+    font-size: 16px !important;
+  }
+
+  /* Landing page — nav */
+  nav {
+    padding: 16px 20px !important;
+  }
+
+  /* Landing page — sections */
+  section {
+    padding: 60px 20px !important;
+  }
+
+  /* Stats bar — stack on mobile */
+  section[style*="gridTemplateColumns: repeat(4"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Three role cards — stack */
+  section div[style*="repeat(3, 1fr)"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Features grid — stack */
+  div[style*="repeat(3, 1fr)"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Footer — stack */
+  footer {
+    flex-direction: column !important;
+    gap: 20px !important;
+    text-align: center !important;
+    padding: 32px 20px !important;
+  }
+
+  footer div {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 16px !important;
+  }
+
+  /* Hero buttons — stack */
+  div[style*="gap: 16px"][style*="justifyContent: center"] {
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  section h1 {
+    font-size: 36px !important;
+  }
+}

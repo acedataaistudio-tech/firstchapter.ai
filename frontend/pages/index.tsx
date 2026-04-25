@@ -46,10 +46,10 @@ function LandingPage() {
   ];
 
   const stats = [
-    { value: "10,000+", label: "Licensed books"       },
-    { value: "50+",     label: "Institutions"          },
-    { value: "1M+",     label: "Queries answered"      },
-    { value: "₹0.50",   label: "Per query to authors"  },
+    { value: "10,000+", label: "Licensed books"      },
+    { value: "50+",     label: "Institutions"         },
+    { value: "1M+",     label: "Queries answered"     },
+    { value: "₹0.50",  label: "Per query to authors" },
   ];
 
   const features = [
@@ -67,7 +67,7 @@ function LandingPage() {
       {/* Nav */}
       <nav style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "20px 60px", background: "white",
+        padding: "16px 24px", background: "white",
         borderBottom: "0.5px solid #e5e4dc",
         position: "sticky", top: 0, zIndex: 50,
       }}>
@@ -84,7 +84,7 @@ function LandingPage() {
           </button>
           <button onClick={() => router.push("/signup")} style={{
             background: "#1D9E75", color: "white", border: "none",
-            borderRadius: "100px", padding: "10px 24px",
+            borderRadius: "100px", padding: "10px 20px",
             fontSize: "14px", fontWeight: "500", cursor: "pointer",
             fontFamily: "'DM Sans', sans-serif",
           }}>
@@ -94,7 +94,7 @@ function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section style={{ padding: "100px 60px 80px", textAlign: "center", background: "white" }}>
+      <section style={{ padding: "60px 24px", textAlign: "center", background: "white" }}>
         <div style={{ display: "inline-block", background: "#E1F5EE", borderRadius: "100px", padding: "6px 16px", marginBottom: "24px" }}>
           <p style={{ fontSize: "12px", color: "#0F6E56", fontWeight: "500", margin: 0 }}>
             🚀 India's first AI-powered licensed book platform
@@ -103,7 +103,7 @@ function LandingPage() {
 
         <h1 style={{
           fontFamily: "'DM Serif Display', serif",
-          fontSize: "72px", lineHeight: 1.05,
+          fontSize: "clamp(36px, 8vw, 72px)", lineHeight: 1.05,
           color: "#2C2C2A", margin: "0 0 24px",
           letterSpacing: "-2px",
           maxWidth: "900px", marginLeft: "auto", marginRight: "auto",
@@ -113,17 +113,17 @@ function LandingPage() {
         </h1>
 
         <p style={{
-          fontSize: "20px", color: "#888780", lineHeight: 1.6,
+          fontSize: "clamp(16px, 3vw, 20px)", color: "#888780", lineHeight: 1.6,
           maxWidth: "600px", margin: "0 auto 48px", fontWeight: "300",
         }}>
           Ask any question. Get cited answers from thousands of licensed books.
           Built for readers, authors and institutions.
         </p>
 
-        <div style={{ display: "flex", gap: "16px", justifyContent: "center", marginBottom: "24px" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "center", marginBottom: "24px" }}>
           <button onClick={() => router.push("/signup")} style={{
             background: "#1D9E75", color: "white", border: "none",
-            borderRadius: "100px", padding: "16px 40px",
+            borderRadius: "100px", padding: "16px 36px",
             fontSize: "16px", fontWeight: "500", cursor: "pointer",
             fontFamily: "'DM Sans', sans-serif",
           }}>
@@ -131,7 +131,7 @@ function LandingPage() {
           </button>
           <button onClick={() => router.push("/sign-in")} style={{
             background: "white", color: "#2C2C2A", border: "1px solid #e5e4dc",
-            borderRadius: "100px", padding: "16px 40px",
+            borderRadius: "100px", padding: "16px 36px",
             fontSize: "16px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
           }}>
             Sign in
@@ -144,42 +144,45 @@ function LandingPage() {
       </section>
 
       {/* Stats bar */}
-      <section style={{ background: "#2C2C2A", padding: "40px 60px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "20px" }}>
+      <section style={{
+        background: "#2C2C2A", padding: "40px 24px",
+        display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "20px",
+      }}>
         {stats.map((stat, i) => (
           <div key={i} style={{ textAlign: "center" }}>
-            <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: "36px", color: "#1D9E75", margin: "0 0 4px" }}>{stat.value}</p>
+            <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(24px, 5vw, 36px)", color: "#1D9E75", margin: "0 0 4px" }}>{stat.value}</p>
             <p style={{ fontSize: "13px", color: "#888780", margin: 0 }}>{stat.label}</p>
           </div>
         ))}
       </section>
 
       {/* Three roles */}
-      <section style={{ padding: "100px 60px", background: "#f9f9f7" }}>
-        <div style={{ textAlign: "center", marginBottom: "60px" }}>
+      <section style={{ padding: "60px 24px", background: "#f9f9f7" }}>
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
           <p style={{ fontSize: "12px", fontWeight: "500", letterSpacing: "2px", color: "#888780", textTransform: "uppercase" as const, marginBottom: "12px" }}>
             Who is Firstchapter for?
           </p>
-          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "48px", color: "#2C2C2A", margin: 0, letterSpacing: "-1px" }}>
+          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 6vw, 48px)", color: "#2C2C2A", margin: 0, letterSpacing: "-1px" }}>
             Built for everyone in the<br />
             <span style={{ color: "#1D9E75", fontStyle: "italic" }}>knowledge ecosystem</span>
           </h2>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px", maxWidth: "1100px", margin: "0 auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "24px", maxWidth: "1100px", margin: "0 auto" }}>
           {roles.map((role, i) => (
             <div key={i}
-              style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "20px", padding: "40px 32px", display: "flex", flexDirection: "column" as const, cursor: "pointer" }}
+              style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "20px", padding: "32px 24px", display: "flex", flexDirection: "column" as const }}
               onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 12px 40px rgba(0,0,0,0.08)"; }}
               onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
             >
               <div style={{ width: "56px", height: "56px", borderRadius: "16px", background: role.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", marginBottom: "20px" }}>
                 {role.emoji}
               </div>
-              <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "28px", color: "#2C2C2A", margin: "0 0 12px" }}>{role.title}</h3>
-              <p style={{ fontSize: "15px", color: "#888780", lineHeight: 1.6, margin: "0 0 32px", flex: 1 }}>{role.description}</p>
+              <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "26px", color: "#2C2C2A", margin: "0 0 12px" }}>{role.title}</h3>
+              <p style={{ fontSize: "15px", color: "#888780", lineHeight: 1.6, margin: "0 0 28px", flex: 1 }}>{role.description}</p>
               <button onClick={() => router.push(role.path)} style={{
                 background: role.color, color: "white", border: "none",
-                borderRadius: "100px", padding: "14px 28px",
+                borderRadius: "100px", padding: "13px 24px",
                 fontSize: "14px", fontWeight: "500", cursor: "pointer",
                 fontFamily: "'DM Sans', sans-serif", width: "100%",
               }}>
@@ -191,21 +194,20 @@ function LandingPage() {
       </section>
 
       {/* How it works */}
-      <section style={{ padding: "100px 60px", background: "white" }}>
-        <div style={{ textAlign: "center", marginBottom: "60px" }}>
+      <section style={{ padding: "60px 24px", background: "white" }}>
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
           <p style={{ fontSize: "12px", fontWeight: "500", letterSpacing: "2px", color: "#888780", textTransform: "uppercase" as const, marginBottom: "12px" }}>
             How it works
           </p>
-          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "48px", color: "#2C2C2A", margin: 0, letterSpacing: "-1px" }}>
+          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 6vw, 48px)", color: "#2C2C2A", margin: 0, letterSpacing: "-1px" }}>
             From question to <span style={{ color: "#1D9E75", fontStyle: "italic" }}>cited answer</span> in seconds
           </h2>
         </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "40px", maxWidth: "900px", margin: "0 auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "32px", maxWidth: "900px", margin: "0 auto" }}>
           {[
-            { step: "01", title: "Search a topic",  desc: "Type any topic or question. Firstchapter finds the most relevant licensed books instantly." },
-            { step: "02", title: "Select books",     desc: "Choose one or more books to discuss. See exactly how deeply each covers your topic." },
-            { step: "03", title: "Ask anything",     desc: "Have a full conversation. Every answer is cited to the exact book and chapter." },
+            { step: "01", title: "Search a topic", desc: "Type any topic or question. Firstchapter finds the most relevant licensed books instantly." },
+            { step: "02", title: "Select books",    desc: "Choose one or more books to discuss. See exactly how deeply each covers your topic." },
+            { step: "03", title: "Ask anything",    desc: "Have a full conversation. Every answer is cited to the exact book and chapter." },
           ].map((item, i) => (
             <div key={i} style={{ textAlign: "center" }}>
               <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: "56px", color: "#e5e4dc", margin: "0 0 16px" }}>{item.step}</p>
@@ -217,15 +219,15 @@ function LandingPage() {
       </section>
 
       {/* Features grid */}
-      <section style={{ padding: "100px 60px", background: "#f9f9f7" }}>
-        <div style={{ textAlign: "center", marginBottom: "60px" }}>
-          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "48px", color: "#2C2C2A", margin: 0, letterSpacing: "-1px" }}>
+      <section style={{ padding: "60px 24px", background: "#f9f9f7" }}>
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
+          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 6vw, 48px)", color: "#2C2C2A", margin: 0, letterSpacing: "-1px" }}>
             Everything you need to <span style={{ color: "#1D9E75", fontStyle: "italic" }}>read smarter</span>
           </h2>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px", maxWidth: "1000px", margin: "0 auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px", maxWidth: "1000px", margin: "0 auto" }}>
           {features.map((feat, i) => (
-            <div key={i} style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "16px", padding: "28px 24px" }}>
+            <div key={i} style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "16px", padding: "24px" }}>
               <p style={{ fontSize: "32px", margin: "0 0 14px" }}>{feat.icon}</p>
               <h3 style={{ fontSize: "16px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 8px" }}>{feat.title}</h3>
               <p style={{ fontSize: "14px", color: "#888780", lineHeight: 1.6, margin: 0 }}>{feat.description}</p>
@@ -235,17 +237,17 @@ function LandingPage() {
       </section>
 
       {/* Publisher CTA */}
-      <section style={{ padding: "100px 60px", background: "#2C2C2A", textAlign: "center" }}>
-        <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "48px", color: "white", margin: "0 0 16px", letterSpacing: "-1px" }}>
+      <section style={{ padding: "60px 24px", background: "#2C2C2A", textAlign: "center" }}>
+        <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(24px, 5vw, 48px)", color: "white", margin: "0 0 16px", letterSpacing: "-1px" }}>
           Are you an author or publisher?
         </h2>
         <p style={{ fontSize: "18px", color: "#888780", margin: "0 auto 40px", maxWidth: "500px", lineHeight: 1.6 }}>
           Upload your books and earn ₹0.50 every time a reader queries your content. Paid monthly. No setup cost.
         </p>
-        <div style={{ display: "flex", gap: "16px", justifyContent: "center" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "center" }}>
           <button onClick={() => router.push("/sign-up?role=publisher")} style={{
             background: "#1D9E75", color: "white", border: "none",
-            borderRadius: "100px", padding: "16px 40px",
+            borderRadius: "100px", padding: "16px 36px",
             fontSize: "16px", fontWeight: "500", cursor: "pointer",
             fontFamily: "'DM Sans', sans-serif",
           }}>
@@ -253,7 +255,7 @@ function LandingPage() {
           </button>
           <button onClick={() => router.push("/sign-up?role=institution")} style={{
             background: "none", color: "white", border: "1px solid #5F5E5A",
-            borderRadius: "100px", padding: "16px 40px",
+            borderRadius: "100px", padding: "16px 36px",
             fontSize: "16px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
           }}>
             For institutions
@@ -262,11 +264,11 @@ function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer style={{ padding: "40px 60px", background: "#1A1A18", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <footer style={{ padding: "32px 24px", background: "#1A1A18", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "16px" }}>
         <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "20px", color: "white", margin: 0 }}>
           First<span style={{ color: "#1D9E75" }}>chapter</span>.ai
         </h1>
-        <div style={{ display: "flex", gap: "32px" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "20px" }}>
           {["For Readers", "For Publishers", "For Institutions", "Privacy", "Terms"].map((link, i) => (
             <p key={i} style={{ fontSize: "13px", color: "#888780", margin: 0, cursor: "pointer" }}>{link}</p>
           ))}
@@ -317,7 +319,7 @@ function ChatMessage({ message, onSuggestionClick }: { message: any; onSuggestio
   const isUser = message.role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-4`}>
-      <div className={`max-w-[80%] ${isUser ? "order-2" : "order-1"}`}>
+      <div className={`max-w-[85%] ${isUser ? "order-2" : "order-1"}`}>
         <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${isUser ? "bg-brand-400 text-white rounded-br-sm" : "bg-gray-100 text-gray-800 rounded-bl-sm"}`}>
           {message.content}
         </div>
@@ -429,20 +431,12 @@ export default function Home() {
   const [chatInput, setChatInput]     = useState("");
   const [showExport, setShowExport]   = useState(false);
 
-  // Show landing page for logged-out users
   if (!isLoaded) return null;
   if (!user) return <LandingPage />;
 
-  // Redirect based on role after login
   const role = user.publicMetadata?.role as string;
-  if (role === "publisher"   && typeof window !== "undefined" && window.location.pathname === "/") {
-    router.push("/publisher");
-    return null;
-  }
-  if (role === "institution" && typeof window !== "undefined" && window.location.pathname === "/") {
-    router.push("/institution");
-    return null;
-  }
+  if (role === "publisher"   && typeof window !== "undefined" && window.location.pathname === "/") { router.push("/publisher");   return null; }
+  if (role === "institution" && typeof window !== "undefined" && window.location.pathname === "/") { router.push("/institution"); return null; }
 
   const handleDiscover = async () => {
     if (!inputValue.trim()) return;
@@ -475,49 +469,52 @@ export default function Home() {
       setQueriesLeft(data.queries_remaining);
       addMessage({ id: uuidv4(), role: "assistant", content: data.answer, sources: data.sources, suggestions: data.suggestions || [], timestamp: new Date().toISOString() });
     } catch (e: any) {
-      const msg = e?.response?.data?.detail || e?.message || "Query failed.";
-      toast.error(msg);
+      toast.error(e?.message || "Query failed.");
     } finally {
       setIsQuerying(false);
     }
   };
 
-  const handleExportDoc = async () => {
-    if (!sessionId) return;
-    await exportToDoc(sessionId, topic || "Firstchapter Session");
-    toast.success("Downloaded as Word document");
-  };
-
-  const handleExportPpt = async () => {
-    if (!sessionId) return;
-    await exportToPpt(sessionId, topic || "Firstchapter Session");
-    toast.success("Downloaded as PowerPoint");
-  };
-
+  const handleExportDoc = async () => { if (!sessionId) return; await exportToDoc(sessionId, topic || "Firstchapter Session"); toast.success("Downloaded as Word document"); };
+  const handleExportPpt = async () => { if (!sessionId) return; await exportToPpt(sessionId, topic || "Firstchapter Session"); toast.success("Downloaded as PowerPoint"); };
   const handleShare = async () => {
     if (!sessionId) return;
     try {
       const data = await createShareLink("", sessionId);
       await navigator.clipboard.writeText(data.share_url);
-      toast.success("Share link copied to clipboard");
-    } catch {
-      toast.error("Could not create share link");
-    }
+      toast.success("Share link copied!");
+    } catch { toast.error("Could not create share link"); }
   };
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans">
-      <Sidebar view={view} onSetView={setView} />
 
-      <main className="flex-1 flex flex-col overflow-hidden">
+      {/* Sidebar — hidden on mobile */}
+      <div className="hidden md:flex">
+        <Sidebar view={view} onSetView={setView} />
+      </div>
+
+      <main className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-0">
+
+  {/* Mobile header — shows only on mobile */}
+  <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
+    <span className="font-serif text-xl text-gray-900">
+      First<span className="text-brand-400">chapter</span>
+    </span>
+    <div className="flex items-center gap-2">
+      <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center text-xs font-medium text-brand-600">
+        {user?.firstName?.[0] || "U"}
+      </div>
+    </div>
+  </div>
 
         {/* HOME */}
         {view === "home" && (
-          <div className="flex-1 flex flex-col items-center justify-center p-8">
-            <h1 className="font-serif text-4xl text-gray-900 mb-2 text-center">
+          <div className="flex-1 flex flex-col items-center justify-center p-6">
+            <h1 className="font-serif text-3xl md:text-4xl text-gray-900 mb-2 text-center">
               What do you want to <span className="text-brand-400 italic">explore</span> today?
             </h1>
-            <p className="text-gray-500 mb-10 text-center text-sm">
+            <p className="text-gray-500 mb-8 text-center text-sm">
               Type a topic or question — we'll find the books that answer it.
             </p>
             <div className="w-full max-w-xl">
@@ -537,19 +534,19 @@ export default function Home() {
         {/* DISCOVER */}
         {view === "discover" && (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="p-5 border-b border-gray-100 bg-white flex items-center gap-3">
+            <div className="p-4 border-b border-gray-100 bg-white flex items-center gap-3">
               <button onClick={resetChat} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
               <div>
                 <p className="text-xs text-gray-400">Results for</p>
                 <p className="font-medium text-gray-800 text-sm">"{topic}"</p>
               </div>
               {selectedBookIds.length > 0 && (
-                <button onClick={() => setView("chat")} className="ml-auto flex items-center gap-2 bg-brand-400 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-brand-600 transition-colors">
-                  Discuss {selectedBookIds.length} book{selectedBookIds.length > 1 ? "s" : ""} <ChevronRight size={16} />
+                <button onClick={() => setView("chat")} className="ml-auto flex items-center gap-2 bg-brand-400 text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-brand-600 transition-colors">
+                  Discuss {selectedBookIds.length} <ChevronRight size={16} />
                 </button>
               )}
             </div>
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className="flex-1 overflow-y-auto p-4">
               {isDiscovering ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3">
                   <div className="w-8 h-8 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
@@ -558,7 +555,7 @@ export default function Home() {
               ) : (
                 <>
                   <p className="text-sm text-gray-500 mb-4">{discoveredBooks.length} books found — select one or more to discuss</p>
-                  <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {discoveredBooks.map((book: any) => (
                       <BookTile key={book.book_id} book={book} selected={selectedBookIds.includes(book.book_id)} onToggle={toggleBookSelection} />
                     ))}
@@ -584,14 +581,14 @@ export default function Home() {
         {/* CHAT */}
         {view === "chat" && (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100 bg-white flex items-center gap-3">
+            <div className="px-4 py-3 border-b border-gray-100 bg-white flex items-center gap-3">
               <button onClick={() => setView("discover")} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
-              <p className="text-sm text-gray-600 flex-1">{selectedBookIds.length > 0 ? `Discussing ${selectedBookIds.length} book(s)` : "All books"}</p>
+              <p className="text-sm text-gray-600 flex-1 truncate">{selectedBookIds.length > 0 ? `Discussing ${selectedBookIds.length} book(s)` : "All books"}</p>
               {sessionId && (
-                <div className="flex items-center gap-2">
-                  <button onClick={handleShare} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" title="Share"><Share2 size={16} /></button>
+                <div className="flex items-center gap-1">
+                  <button onClick={handleShare} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"><Share2 size={16} /></button>
                   <div className="relative">
-                    <button onClick={() => setShowExport(!showExport)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" title="Export"><Download size={16} /></button>
+                    <button onClick={() => setShowExport(!showExport)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"><Download size={16} /></button>
                     {showExport && (
                       <div className="absolute right-0 top-9 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-10 min-w-[160px]">
                         <button onClick={() => { handleExportDoc(); setShowExport(false); }} className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
@@ -603,14 +600,14 @@ export default function Home() {
                       </div>
                     )}
                   </div>
-                  <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" title="Invite"><Users size={16} /></button>
+                  <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"><Users size={16} /></button>
                 </div>
               )}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className="flex-1 overflow-y-auto p-4">
               {messages.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-center px-8">
+                <div className="flex flex-col items-center justify-center h-full text-center px-4">
                   <BookOpen size={32} className="text-brand-400 mb-3" />
                   <p className="text-gray-700 font-medium text-sm mb-1">Ready to explore</p>
                   <p className="text-gray-400 text-xs mb-6">Try one of these to get started</p>
@@ -631,9 +628,7 @@ export default function Home() {
                 <div className="flex justify-start mb-4">
                   <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3">
                     <div className="flex gap-1">
-                      {[0, 1, 2].map(i => (
-                        <span key={i} className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-                      ))}
+                      {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce" style={{ animationDelay: `${i*0.15}s` }} />)}
                     </div>
                   </div>
                 </div>
@@ -658,7 +653,33 @@ export default function Home() {
         {view === "history" && (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="font-serif text-2xl text-gray-900 mb-6">Previous chats</h2>
-            <p className="text-sm text-gray-500">Your query history will appear here.</p>
+            <div className="space-y-3 max-w-2xl">
+              {[
+                { topic: "Economic theories in Wealth of Nations",   books: ["Wealth of Nations"],                          date: "Today, 2:30 PM",      queries: 8  },
+                { topic: "Leadership strategies from Art of War",     books: ["The Art of War"],                             date: "Today, 11:20 AM",     queries: 12 },
+                { topic: "Stoic philosophy and modern life",          books: ["Meditations"],                                date: "Yesterday, 4:15 PM",  queries: 6  },
+                { topic: "Political power and governance",            books: ["The Prince", "The Republic"],                 date: "Yesterday, 10:00 AM", queries: 15 },
+                { topic: "Self development and mindset",              books: ["Think and Grow Rich", "As a Man Thinketh"],   date: "2 days ago",          queries: 9  },
+              ].map((session, i) => (
+                <div key={i} onClick={() => { setView("chat"); setTopic(session.topic); }}
+                  className="bg-white border border-gray-100 rounded-xl p-4 cursor-pointer hover:border-brand-100 hover:shadow-sm transition-all">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-gray-900 truncate">{session.topic}</p>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {session.books.map((book, j) => (
+                          <span key={j} className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{book}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs text-gray-400">{session.date}</p>
+                      <p className="text-xs text-gray-400 mt-1">{session.queries} queries</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -666,10 +687,54 @@ export default function Home() {
         {view === "saved" && (
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="font-serif text-2xl text-gray-900 mb-6">Saved answers</h2>
-            <p className="text-sm text-gray-500">Answers you save will appear here.</p>
+            <div className="space-y-3 max-w-2xl">
+              {[
+                { question: "What does Sun Tzu say about knowing your enemy?", answer: "Sun Tzu emphasizes that knowing both yourself and your enemy is the key to victory. He states that if you know the enemy and know yourself, you need not fear the result of a hundred battles.", book: "The Art of War", chapter: "Chapter 3 — Strategic Attack", saved: "Today, 2:45 PM" },
+                { question: "What is Adam Smith's theory of the invisible hand?", answer: "Adam Smith's invisible hand describes how individuals pursuing their own self-interest in a free market economy unintentionally promote the general good of society through the mechanism of market competition.", book: "Wealth of Nations", chapter: "Book IV — Systems of Political Economy", saved: "Yesterday, 11:30 AM" },
+                { question: "How does Marcus Aurelius define happiness?", answer: "Marcus Aurelius defines happiness not as external pleasure but as virtue and inner tranquility. He writes that the happiness of your life depends upon the quality of your thoughts.", book: "Meditations", chapter: "Book V", saved: "2 days ago" },
+              ].map((item, i) => (
+                <div key={i} className="bg-white border border-gray-100 rounded-xl p-4">
+                  <p className="font-medium text-sm text-gray-900 mb-2">{item.question}</p>
+                  <p className="text-sm text-gray-600 leading-relaxed mb-3 line-clamp-3">{item.answer}</p>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex gap-1 flex-wrap">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{item.book}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-100">{item.chapter}</span>
+                    </div>
+                    <p className="text-xs text-gray-400">{item.saved}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </main>
+
+      {/* Mobile bottom navigation */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex items-center justify-around px-2 py-2 z-50">
+        <button onClick={() => { setView("home"); resetChat(); }}
+          className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${view === "home" ? "text-brand-400" : "text-gray-400"}`}>
+          <Search size={20} />
+          <span className="text-xs">Home</span>
+        </button>
+        <button onClick={() => setView("history")}
+          className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${view === "history" ? "text-brand-400" : "text-gray-400"}`}>
+          <BookOpen size={20} />
+          <span className="text-xs">History</span>
+        </button>
+        <button onClick={() => setView("saved")}
+          className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${view === "saved" ? "text-brand-400" : "text-gray-400"}`}>
+          <Save size={20} />
+          <span className="text-xs">Saved</span>
+        </button>
+        <div className="flex flex-col items-center gap-1 px-4 py-2">
+          <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center text-xs font-medium text-brand-600">
+            {user?.firstName?.[0] || "U"}
+          </div>
+          <span className="text-xs text-gray-400">{user?.firstName || "Me"}</span>
+        </div>
+      </div>
+
     </div>
   );
 }
