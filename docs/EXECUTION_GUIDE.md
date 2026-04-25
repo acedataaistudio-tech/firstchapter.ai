@@ -8,10 +8,7 @@ cd C:\\Firstchapter.ai\\firstchapter-ai\\firstchapter-ai\\frontend
 npm run dev
 http://localhost:3000/
 
-Clerk Public Key: NEXT\_PUBLIC\_CLERK\_PUBLISHABLE\_KEY=pk\_test\_bGVnaWJsZS1iYWJvb24tOTcuY2xlcmsuYWNjb3VudHMuZGV2JA
-CLERK\_SECRET\_KEY=sk\_test\_p4615RrE3134vEdvCOHKj1DkjtT6TK0pcQ17qSfQlT
-
-\---
+Clerk Public Key: \---
 
 # Firstchapter.ai — Step by Step Execution Guide
 
@@ -33,16 +30,16 @@ Before anything else, get these:
 2. **Supabase project** -> \*\*\* login through GitHub username acedataaistudio@gmail.com/madhavaram@1984
 
    * Go to supabase.com → New project \*\*\*password 'Logan@1984aa"
-   * Copy Project URL and anon key from Settings → API \*\*\*https://supabase.com/dashboard/project/jucspftpoecayjgdgegm \*\*\*Publishable API sb\_publishable\_oMifxPW32L24beORAddalA\_hWqR0gzI \*\*\* Secret Key sb\_secret\_u9175WH6yQikDmXy7UYBcQ\_7klwlgjP
+   * Copy Project URL and anon key from Settings → 
    * Go to SQL Editor → paste contents of backend/database/schema.sql → Run \*\*\*
 3. **Qdrant Cloud (optional for day 1)** \*\*\* login through GitHub username acedataaistudio@gmail.com/madhavaram@1984
 
    * Go to cloud.qdrant.io → Free tier \*\*\* created a cluster 'FirstChapter'
-   * Or skip and use local Qdrant (in-memory mode works fine to start) \*\*\* API Key: 6b23ae1d-b839-40d8-b4ea-b098f41e0b1e|pKyyXsxZq5Gv5ZmL\_W23bq3bTUtXcIUpOxzQit2k2m\_4Rt28bzRMKg
+   * Or skip and use local Qdrant (in-memory mode works fine to start) \*\*\* 
 4. **Cohere API (for reranking)** \*\*\* login through GitHub username acedataaistudio@gmail.com/madhavaram@1984
 
    * Go to cohere.com → Free tier
-   * Get API key \*\*\* API Key FzZvrPd8FbYkQbR7Re4AT3vjxuXMQuOOKb2winco
+   * Get API key \*\*\* 
 
 \---
 
