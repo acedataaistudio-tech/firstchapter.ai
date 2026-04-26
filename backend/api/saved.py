@@ -32,16 +32,20 @@ def get_saved(x_user_id: str = Header(default="anonymous")):
 def save_answer(req: SaveRequest, x_user_id: str = Header(default="anonymous")):
     try:
         db = get_db()
-        db.table("saved_answers").insert({
-            "id":       str(uuid.uuid4()),
-            "user_id":  x_user_id,
-            "query_id": req.query_id,
-            "title":    req.title,
-            "question": req.question,
-            "answer":   req.answer,
-            "book":     req.book,
-            "chapter":  req.chapter,
-        }).execute()
+        # query_id might not be a valid UUID — make it optional
+import re
+valid_uuid = bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', req.query_id or ""))
+
+db.table("saved_answers").insert({
+    "id":       str(uuid.uuid4()),
+    "user_id":  x_user_id,
+    "query_id": req.query_id if valid_uuid else None,
+    "title":    req.title,
+    "question": req.question,
+    "answer":   req.answer,
+    "book":     req.book,
+    "chapter":  req.chapter,
+}).execute()
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
