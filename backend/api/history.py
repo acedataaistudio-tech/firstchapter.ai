@@ -54,3 +54,17 @@ def delete_session(session_id: str, x_user_id: str = Header(default="anonymous")
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{session_id}")
+def get_session(session_id: str, x_user_id: str = Header(default="anonymous")):
+    try:
+        db = get_db()
+        res = db.table("queries")\
+            .select("id, question, answer, sources, created_at")\
+            .eq("session_id", session_id)\
+            .eq("user_id", x_user_id)\
+            .order("created_at", desc=False)\
+            .execute()
+        return {"messages": res.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

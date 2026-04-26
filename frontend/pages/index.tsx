@@ -488,13 +488,14 @@ export default function Home() {
 
   if (!isLoaded) return null;
   if (!user) return <LandingPage />;
-// Save user ID for API calls
-setApiUserId(user.id);
 
   const role = (user.unsafeMetadata?.role || user.publicMetadata?.role) as string;
   if (role === "publisher"   && typeof window !== "undefined" && window.location.pathname === "/") { router.push("/publisher");   return null; }
   if (role === "institution" && typeof window !== "undefined" && window.location.pathname === "/") { router.push("/institution"); return null; }
   if (!role && typeof window !== "undefined" && window.location.pathname === "/") { router.push("/onboarding"); return null; }
+
+  // Save user ID for API calls
+  setApiUserId(user.id);
 
   const handleDiscover = async () => {
     if (!inputValue.trim()) return;
@@ -687,7 +688,16 @@ setApiUserId(user.id);
 
         {/* HISTORY */}
         {view === "history" && (
-  <HistoryView userId={user.id || ""} onResumeSession={(topic) => { setView("chat"); setTopic(topic); }} />
+          <HistoryView userId={user.id} onResumeSession={(topic, sessionId, msgs) => {
+            resetChat();
+            setTopic(topic);
+            setSessionId(sessionId);
+            msgs.forEach(msg => {
+              addMessage({ id: uuidv4(), role: "user" as const, content: msg.question, timestamp: msg.created_at });
+              addMessage({ id: uuidv4(), role: "assistant" as const, content: msg.answer, sources: msg.sources || [], suggestions: [], timestamp: msg.created_at });
+            });
+            setView("chat");
+          }} />
         )}
 
         {/* SAVED */}
@@ -717,21 +727,21 @@ setApiUserId(user.id);
 }
 
 // ── History View ──────────────────────────────────────────────────────────────
-function HistoryView({ userId, onResumeSession }: { userId: string; onResumeSession: (topic: string) => void }) {
+function HistoryView({ userId, onResumeSession }: { 
+  userId: string; 
+  onResumeSession: (topic: string, sessionId: string, messages: any[]) => void;
+}) {
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingSession, setLoadingSession] = useState<string | null>(null);
 
   const fetchHistory = useCallback(async () => {
     setLoading(true);
-    console.log("Fetching history for user:", userId);
     try {
       const res = await fetch(`${API_URL}/api/history/`, {
         headers: { "x-user-id": userId },
       });
-      console.log("History response status:", res.status);
       const data = await res.json();
-      console.log("History data:", data);
-      console.log("Sessions count:", data.history?.length);
       setSessions(data.history || []);
     } catch (e) {
       console.error("Failed to fetch history:", e);
@@ -741,6 +751,21 @@ function HistoryView({ userId, onResumeSession }: { userId: string; onResumeSess
   }, [userId]);
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
+
+  const handleResume = async (sessionId: string, topic: string) => {
+    setLoadingSession(sessionId);
+    try {
+      const res = await fetch(`${API_URL}/api/history/${sessionId}`, {
+        headers: { "x-user-id": userId },
+      });
+      const data = await res.json();
+      onResumeSession(topic, sessionId, data.messages || []);
+    } catch {
+      onResumeSession(topic, sessionId, []);
+    } finally {
+      setLoadingSession(null);
+    }
+  };
 
   const handleDelete = async (sessionId: string) => {
     try {
@@ -784,13 +809,22 @@ function HistoryView({ userId, onResumeSession }: { userId: string; onResumeSess
           {sessions.map((session, i) => (
             <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 hover:border-brand-100 hover:shadow-sm transition-all group">
               <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onResumeSession(session.topic)}>
-                  <p className="font-medium text-sm text-gray-900 truncate">{session.topic}</p>
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {(session.books || []).slice(0, 3).map((book: string, j: number) => (
-                      <span key={j} className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{book}</span>
-                    ))}
-                  </div>
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleResume(session.session_id, session.topic)}>
+                  {loadingSession === session.session_id ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-xs text-gray-400">Loading conversation...</p>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-medium text-sm text-gray-900 truncate">{session.topic}</p>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {(session.books || []).slice(0, 3).map((book: string, j: number) => (
+                          <span key={j} className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{book}</span>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <div className="text-right">
