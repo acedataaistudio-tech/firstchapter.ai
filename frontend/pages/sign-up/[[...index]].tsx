@@ -1,6 +1,16 @@
 import { SignUp } from "@clerk/nextjs";
+import { useRouter } from "next/router";
 
 export default function SignUpPage() {
+  const router = useRouter();
+  const role = router.query.role as string;
+
+  // Determine where to go after signup based on role
+  const afterSignUpUrl =
+    role === "publisher"   ? "/publisher-onboarding" :
+    role === "institution" ? "/institution" :
+    "/reader-onboarding";  // default for readers
+
   return (
     <div style={{
       minHeight: "100vh",
@@ -24,7 +34,9 @@ export default function SignUpPage() {
           color: "#888780",
           marginBottom: "32px",
         }}>
-          Create your account
+          {role === "publisher"   ? "Create your publisher account" :
+           role === "institution" ? "Create your institution account" :
+           "Start reading for free"}
         </p>
         <SignUp
           appearance={{
@@ -40,7 +52,7 @@ export default function SignUpPage() {
               },
             }
           }}
-          afterSignUpUrl="/onboarding"
+          afterSignUpUrl={afterSignUpUrl}
         />
       </div>
     </div>

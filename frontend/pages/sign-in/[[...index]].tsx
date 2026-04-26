@@ -1,6 +1,20 @@
 import { SignIn } from "@clerk/nextjs";
+import { useRouter } from "next/router";
 
 export default function SignInPage() {
+  const router = useRouter();
+  const role = router.query.role as string;
+
+  const afterSignInUrl =
+    role === "publisher"   ? "/publisher" :
+    role === "institution" ? "/institution" :
+    "/";  // readers go to platform
+
+  const subtitle =
+    role === "publisher"   ? "Sign in to your publisher account" :
+    role === "institution" ? "Sign in to your institution account" :
+    "Sign in to continue reading";
+
   return (
     <div style={{
       minHeight: "100vh",
@@ -24,7 +38,7 @@ export default function SignInPage() {
           color: "#888780",
           marginBottom: "32px",
         }}>
-          Sign in to continue reading
+          {subtitle}
         </p>
         <SignIn
           appearance={{
@@ -40,7 +54,7 @@ export default function SignInPage() {
               },
             }
           }}
-          afterSignInUrl="/onboarding"
+          afterSignInUrl={afterSignInUrl}
         />
       </div>
     </div>
