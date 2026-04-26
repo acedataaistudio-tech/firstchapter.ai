@@ -21,7 +21,7 @@ function LandingPage() {
       cta:         "Start reading free",
       color:       "#1D9E75",
       bg:          "#E1F5EE",
-      path:        "/signup",
+      path:        "/sign-up",
     },
     {
       id:          "publisher",
@@ -31,7 +31,7 @@ function LandingPage() {
       cta:         "Publish your books",
       color:       "#7F77DD",
       bg:          "#EEEDFE",
-      path:        "/sign-up?role=publisher",
+      path:        "/sign-up",
     },
     {
       id:          "institution",
@@ -41,7 +41,7 @@ function LandingPage() {
       cta:         "Get institution access",
       color:       "#378ADD",
       bg:          "#E6F1FB",
-      path:        "/sign-up?role=institution",
+      path:        "/sign-up",
     },
   ];
 
@@ -75,7 +75,7 @@ function LandingPage() {
           }}>
             Sign in
           </button>
-          <button onClick={() => router.push("/signup")} style={{
+          <button onClick={() => router.push("/sign-up")} style={{
             background: "#1D9E75", color: "white", border: "none",
             borderRadius: "100px", padding: "10px 20px",
             fontSize: "14px", fontWeight: "500", cursor: "pointer",
@@ -114,7 +114,7 @@ function LandingPage() {
         </p>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "center", marginBottom: "24px" }}>
-          <button onClick={() => router.push("/signup")} style={{
+          <button onClick={() => router.push("/sign-up")} style={{
             background: "#1D9E75", color: "white", border: "none",
             borderRadius: "100px", padding: "16px 36px",
             fontSize: "16px", fontWeight: "500", cursor: "pointer",
@@ -225,7 +225,7 @@ function LandingPage() {
           Upload your books and earn ₹0.50 every time a reader queries your content. Paid monthly. No setup cost.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "center" }}>
-          <button onClick={() => router.push("/sign-up?role=publisher")} style={{
+          <button onClick={() => router.push("/sign-up")} style={{
             background: "#1D9E75", color: "white", border: "none",
             borderRadius: "100px", padding: "16px 36px",
             fontSize: "16px", fontWeight: "500", cursor: "pointer",
@@ -233,7 +233,7 @@ function LandingPage() {
           }}>
             Start publishing →
           </button>
-          <button onClick={() => router.push("/sign-up?role=institution")} style={{
+          <button onClick={() => router.push("/sign-up")} style={{
             background: "none", color: "white", border: "1px solid #5F5E5A",
             borderRadius: "100px", padding: "16px 36px",
             fontSize: "16px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
@@ -334,7 +334,6 @@ function Sidebar({ view, onSetView }: any) {
   const { queriesLeft, resetChat } = useStore();
   const { user } = useUser();
   const { signOut } = useClerk();
-  const router = useRouter();
 
   const navItems = [
     { id: "home",    label: "Home",    icon: Search   },
@@ -367,7 +366,9 @@ function Sidebar({ view, onSetView }: any) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-gray-800 truncate">{user.firstName || "User"}</p>
-              <p className="text-xs text-gray-400 truncate capitalize">{(user.publicMetadata?.role as string) || "reader"}</p>
+              <p className="text-xs text-gray-400 truncate capitalize">
+                {(user.unsafeMetadata?.role as string) || (user.publicMetadata?.role as string) || "reader"}
+              </p>
             </div>
           </div>
           <button onClick={() => signOut()} className="w-full text-xs text-gray-400 hover:text-gray-600 text-left px-1">
@@ -414,9 +415,18 @@ export default function Home() {
   if (!isLoaded) return null;
   if (!user) return <LandingPage />;
 
-  const role = user.publicMetadata?.role as string;
+  // Check role from both metadata locations
+  const role = (user.unsafeMetadata?.role || user.publicMetadata?.role) as string;
+
+  // Redirect publishers and institutions
   if (role === "publisher"   && typeof window !== "undefined" && window.location.pathname === "/") { router.push("/publisher");   return null; }
   if (role === "institution" && typeof window !== "undefined" && window.location.pathname === "/") { router.push("/institution"); return null; }
+
+  // If no role set yet — go to onboarding
+  if (!role && typeof window !== "undefined" && window.location.pathname === "/") {
+    router.push("/onboarding");
+    return null;
+  }
 
   const handleDiscover = async () => {
     if (!inputValue.trim()) return;
@@ -476,17 +486,15 @@ export default function Home() {
 
       <main className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-0">
 
-  {/* Mobile header — shows only on mobile */}
-  <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
-    <span className="font-serif text-xl text-gray-900">
-      First<span className="text-brand-400">chapter</span>
-    </span>
-    <div className="flex items-center gap-2">
-      <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center text-xs font-medium text-brand-600">
-        {user?.firstName?.[0] || "U"}
-      </div>
-    </div>
-  </div>
+        {/* Mobile header */}
+        <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
+          <span className="font-serif text-xl text-gray-900">
+            First<span className="text-brand-400">chapter</span>
+          </span>
+          <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center text-xs font-medium text-brand-600">
+            {user?.firstName?.[0] || "U"}
+          </div>
+        </div>
 
         {/* HOME */}
         {view === "home" && (
@@ -635,11 +643,11 @@ export default function Home() {
             <h2 className="font-serif text-2xl text-gray-900 mb-6">Previous chats</h2>
             <div className="space-y-3 max-w-2xl">
               {[
-                { topic: "Economic theories in Wealth of Nations",   books: ["Wealth of Nations"],                          date: "Today, 2:30 PM",      queries: 8  },
-                { topic: "Leadership strategies from Art of War",     books: ["The Art of War"],                             date: "Today, 11:20 AM",     queries: 12 },
-                { topic: "Stoic philosophy and modern life",          books: ["Meditations"],                                date: "Yesterday, 4:15 PM",  queries: 6  },
-                { topic: "Political power and governance",            books: ["The Prince", "The Republic"],                 date: "Yesterday, 10:00 AM", queries: 15 },
-                { topic: "Self development and mindset",              books: ["Think and Grow Rich", "As a Man Thinketh"],   date: "2 days ago",          queries: 9  },
+                { topic: "Economic theories in Wealth of Nations",   books: ["Wealth of Nations"],                        date: "Today, 2:30 PM",      queries: 8  },
+                { topic: "Leadership strategies from Art of War",     books: ["The Art of War"],                           date: "Today, 11:20 AM",     queries: 12 },
+                { topic: "Stoic philosophy and modern life",          books: ["Meditations"],                              date: "Yesterday, 4:15 PM",  queries: 6  },
+                { topic: "Political power and governance",            books: ["The Prince", "The Republic"],               date: "Yesterday, 10:00 AM", queries: 15 },
+                { topic: "Self development and mindset",              books: ["Think and Grow Rich", "As a Man Thinketh"], date: "2 days ago",          queries: 9  },
               ].map((session, i) => (
                 <div key={i} onClick={() => { setView("chat"); setTopic(session.topic); }}
                   className="bg-white border border-gray-100 rounded-xl p-4 cursor-pointer hover:border-brand-100 hover:shadow-sm transition-all">
