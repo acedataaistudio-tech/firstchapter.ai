@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api import books, query, history, export, share, users, admin
+from api import books, query, history, export, share, users, admin, saved
 from websocket_handler.websocket import router as ws_router
 import logging
 
@@ -27,6 +27,7 @@ app.include_router(export.router,  prefix="/api/export",  tags=["Export"])
 app.include_router(share.router,   prefix="/api/share",   tags=["Share"])
 app.include_router(users.router,   prefix="/api/users",   tags=["Users"])
 app.include_router(admin.router,   prefix="/api/admin",   tags=["Admin"])
+app.include_router(saved.router, prefix="/api/saved")
 app.include_router(ws_router)
 
 @app.get("/")

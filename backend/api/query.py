@@ -31,7 +31,16 @@ async def discover(
         raise HTTPException(status_code=400, detail="Topic is required")
     try:
         books = discover_books(topic=request.topic)
-        return {"topic": request.topic, "books": books}
+
+        # Deduplicate by book_id — keep highest scoring result
+        seen_ids = set()
+        unique_books = []
+        for book in books:
+            if book["book_id"] not in seen_ids:
+                seen_ids.add(book["book_id"])
+                unique_books.append(book)
+
+        return {"topic": request.topic, "books": unique_books}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -51,6 +60,27 @@ async def query(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    # Save query to Supabase history
+    try:
+        from database.crud import get_db
+        db = get_db()
+        # Ensure user exists
+        db.table("users").upsert({
+            "id":    x_user_id,
+            "email": f"{x_user_id}@clerk.user",
+        }, on_conflict="id").execute()
+        # Save query
+        db.table("queries").insert({
+            "user_id":    x_user_id,
+            "session_id": session_id,
+            "question":   request.question,
+            "answer":     result["answer"],
+            "sources":    result["sources"],
+            "book_ids":   request.book_ids or [],
+        }).execute()
+    except Exception as save_err:
+        print(f"Failed to save query to history: {save_err}")
 
     return QueryResponse(
         answer=result["answer"],
