@@ -728,6 +728,8 @@ function HistoryView({ userId, onResumeSession }: { userId: string; onResumeSess
       });
       console.log("History response status:", res.status);
       const data = await res.json();
+      console.log("History data:", data);
+      console.log("Sessions count:", data.history?.length);
       setSessions(data.history || []);
     } catch (e) {
       console.error("Failed to fetch history:", e);
