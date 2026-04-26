@@ -685,7 +685,7 @@ export default function Home() {
 
         {/* HISTORY */}
         {view === "history" && (
-          <HistoryView userId={user.id} onResumeSession={(topic) => { setView("chat"); setTopic(topic); }} />
+  <HistoryView userId={user.id || ""} onResumeSession={(topic) => { setView("chat"); setTopic(topic); }} />
         )}
 
         {/* SAVED */}
@@ -721,10 +721,12 @@ function HistoryView({ userId, onResumeSession }: { userId: string; onResumeSess
 
   const fetchHistory = useCallback(async () => {
     setLoading(true);
+    console.log("Fetching history for user:", userId);
     try {
       const res = await fetch(`${API_URL}/api/history/`, {
         headers: { "x-user-id": userId },
       });
+      console.log("History response status:", res.status);
       const data = await res.json();
       setSessions(data.history || []);
     } catch (e) {
