@@ -6,11 +6,23 @@ const api = axios.create({ baseURL: API_URL });
 
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
-    const userId = localStorage.getItem("fc_user_id") || "anonymous";
+    // Try multiple sources for user ID
+    const userId = 
+      localStorage.getItem("fc_user_id") || 
+      sessionStorage.getItem("fc_user_id") || 
+      "anonymous";
     config.headers["x-user-id"] = userId;
   }
   return config;
 });
+
+// Helper to set user ID — call this after Clerk loads
+export function setApiUserId(userId: string) {
+  if (typeof window !== "undefined" && userId) {
+    localStorage.setItem("fc_user_id", userId);
+    sessionStorage.setItem("fc_user_id", userId);
+  }
+}
 
 export async function discoverBooks(topic: string) {
   const res = await api.post("/api/discover", { topic });

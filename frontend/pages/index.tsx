@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useStore } from "../lib/store";
-import { discoverBooks, queryBooks, exportToDoc, exportToPpt, createShareLink } from "../lib/api";
+import { discoverBooks, queryBooks, exportToDoc, exportToPpt, createShareLink, setApiUserId } from "../lib/api";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/router";
 import toast from "react-hot-toast";
@@ -488,6 +488,8 @@ export default function Home() {
 
   if (!isLoaded) return null;
   if (!user) return <LandingPage />;
+// Save user ID for API calls
+setApiUserId(user.id);
 
   const role = (user.unsafeMetadata?.role || user.publicMetadata?.role) as string;
   if (role === "publisher"   && typeof window !== "undefined" && window.location.pathname === "/") { router.push("/publisher");   return null; }
