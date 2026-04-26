@@ -174,13 +174,14 @@ export default function AdminDashboard() {
   };
 
   const navItems = [
-    { id: "overview",     label: "Overview"     },
-    { id: "users",        label: "Users"        },
-    { id: "books",        label: "Books"        },
-    { id: "institutions", label: "Institutions" },
-    { id: "queries",      label: "Live queries" },
-    { id: "revenue",      label: "Revenue"      },
-  ];
+  { id: "overview",     label: "Overview"     },
+  { id: "users",        label: "Users"        },
+  { id: "publishers",   label: "Publishers"   },
+  { id: "books",        label: "Books"        },
+  { id: "institutions", label: "Institutions" },
+  { id: "queries",      label: "Live queries" },
+  { id: "revenue",      label: "Revenue"      },
+];
 
   // ── Password Gate ─────────────────────────────────────────────────────────────
   if (!authenticated) {
@@ -524,6 +525,96 @@ export default function AdminDashboard() {
             )}
           </div>
         )}
+{/* PUBLISHERS */}
+{activeTab === "publishers" && (
+  <div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "24px" }}>
+      {[
+        { label: "Total publishers", value: users.filter(u => u.role === "publisher").length, color: "#7F77DD" },
+        { label: "Total books",      value: books.length,                                      color: "#1D9E75" },
+        { label: "Pending payouts",  value: "—",                                               color: "#EF9F27" },
+      ].map((stat, i) => (
+        <div key={i} style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "20px" }}>
+          <p style={{ fontSize: "12px", color: "#888780", margin: "0 0 8px" }}>{stat.label}</p>
+          <p style={{ fontSize: "28px", fontFamily: "'DM Serif Display', serif", color: stat.color, margin: 0 }}>{stat.value}</p>
+        </div>
+      ))}
+    </div>
+
+    <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", overflow: "hidden" }}>
+      <div style={{ padding: "20px 24px", borderBottom: "0.5px solid #e5e4dc" }}>
+        <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>All publishers</p>
+      </div>
+      {loadingUsers ? (
+        <div style={{ padding: "48px", textAlign: "center" as const }}>
+          <p style={{ fontSize: "13px", color: "#888780" }}>Loading...</p>
+        </div>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ background: "#f9f9f7" }}>
+              {["Publisher", "Email", "Joined", "Books", "Status", "Actions"].map(h => (
+                <th key={h} style={{ padding: "12px 20px", textAlign: "left" as const, fontSize: "11px", color: "#888780", fontWeight: "500", borderBottom: "0.5px solid #e5e4dc" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {users.filter(u => u.role === "publisher").map((pub, i) => {
+              const pubBooks = books.filter(b => b.uploaded_by === pub.id);
+              return (
+                <tr key={pub.id} style={{ borderBottom: "0.5px solid #f0efea" }}>
+                  <td style={{ padding: "14px 20px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#EEEDFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: "500", color: "#534AB7" }}>
+                        {pub.name?.[0] || "?"}
+                      </div>
+                      <p style={{ fontSize: "13px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>{pub.name}</p>
+                    </div>
+                  </td>
+                  <td style={{ padding: "14px 20px", fontSize: "13px", color: "#888780" }}>{pub.email}</td>
+                  <td style={{ padding: "14px 20px", fontSize: "13px", color: "#888780" }}>
+                    {pub.joined ? new Date(pub.joined).toLocaleDateString("en-IN") : "—"}
+                  </td>
+                  <td style={{ padding: "14px 20px", fontSize: "13px", color: "#7F77DD", fontWeight: "500" }}>{pubBooks.length}</td>
+                  <td style={{ padding: "14px 20px" }}>
+                    <span style={{ fontSize: "11px", padding: "3px 10px", borderRadius: "100px", background: "#E1F5EE", color: "#0F6E56" }}>
+                      {pub.status}
+                    </span>
+                  </td>
+                  <td style={{ padding: "14px 20px" }}>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <button onClick={() => handleSuspendUser(pub.id, pub.status)} style={{
+                        background: "#FAEEDA", color: "#854F0B",
+                        border: "none", borderRadius: "100px", padding: "4px 10px",
+                        fontSize: "11px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                      }}>
+                        Suspend
+                      </button>
+                      <button onClick={() => handleDeleteUser(pub.id, pub.name)} style={{
+                        background: "#FCEBEB", color: "#A32D2D",
+                        border: "none", borderRadius: "100px", padding: "4px 10px",
+                        fontSize: "11px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                      }}>
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {users.filter(u => u.role === "publisher").length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ padding: "48px", textAlign: "center" as const, fontSize: "13px", color: "#888780" }}>
+                  No publishers yet. Publishers will appear here after they sign up.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+    </div>
+  </div>
+)}
 
         {/* INSTITUTIONS */}
         {activeTab === "institutions" && (
