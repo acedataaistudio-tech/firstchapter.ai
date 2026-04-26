@@ -5,8 +5,8 @@ import { useRouter } from "next/router";
 const roles = [
   {
     id: "student",
-    title: "Student",
-    description: "Search and query books for learning and research",
+    title: "Reader",
+    description: "Discover and query books. Get instant cited answers on any topic.",
     icon: "📚",
     color: "#1D9E75",
   },

@@ -175,3 +175,8 @@ def get_institution_stats(institution_id: str) -> dict:
         "total_queries": total_queries,
         "users":         users,
     }
+
+def delete_book_by_id(book_id: str):
+    db = get_db()
+    db.table("books").delete().eq("id", book_id).execute()
+    return True
