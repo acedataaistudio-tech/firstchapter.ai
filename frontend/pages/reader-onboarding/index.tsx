@@ -52,18 +52,12 @@ export default function ReaderOnboarding() {
   const [loading, setLoading] = useState(false);
 
   // Profile form
-  const [name, setName] = useState("");
   const [profession, setProfession] = useState("");
   const [reason, setReason] = useState("");
   const [subjects, setSubjects] = useState<string[]>([]);
 
-  // Check if user signed up via Google (has externalAccounts)
-  const isGoogleUser = user?.externalAccounts?.some(a => a.provider === "google");
-
   useEffect(() => {
     if (!isLoaded || !user) return;
-    // Pre-fill name from Clerk if available
-    if (user.firstName) setName(user.firstName + (user.lastName ? ` ${user.lastName}` : ""));
   }, [isLoaded, user]);
 
   const toggleSubject = (subject: string) => {
@@ -83,11 +77,6 @@ export default function ReaderOnboarding() {
   };
 
   const handleSave = async () => {
-    // Validate name only for non-Google users
-    if (!isGoogleUser && !name.trim()) {
-      alert("Please enter your name");
-      return;
-    }
     if (subjects.length === 0) {
       alert("Please select at least one subject area");
       return;
@@ -105,13 +94,6 @@ export default function ReaderOnboarding() {
           ...(isInstitution && { collegeCode: collegeCode.toUpperCase() }),
         }
       };
-
-      // Only update name if not Google user and name provided
-      if (!isGoogleUser && name.trim()) {
-        const parts = name.trim().split(" ");
-        updateData.firstName = parts[0];
-        updateData.lastName = parts.slice(1).join(" ") || "";
-      }
 
       await user?.update(updateData);
       router.push("/");
@@ -233,31 +215,13 @@ export default function ReaderOnboarding() {
           {step === 2 && (
             <>
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "22px", color: "#2C2C2A", margin: "0 0 4px" }}>
-                {isGoogleUser
-                  ? `Welcome, ${user?.firstName}! 👋`
-                  : "Almost there!"}
+                Welcome, {user?.firstName}! 👋
               </h2>
               <p style={{ fontSize: "14px", color: "#888780", margin: "0 0 24px", lineHeight: 1.6 }}>
                 {isInstitution
                   ? `College code applied ✅ — tell us what you love reading`
                   : "Help us personalise your reading experience"}
               </p>
-
-              {/* Name — only for non-Google users */}
-              {!isGoogleUser && (
-                <div style={{ marginBottom: "18px" }}>
-                  <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>
-                    Your name <span style={{ color: "#E24B4A" }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Full name"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    style={inputStyle}
-                  />
-                </div>
-              )}
 
               {/* Profession */}
               <div style={{ marginBottom: "18px" }}>
@@ -339,11 +303,10 @@ export default function ReaderOnboarding() {
 
               <button
                 onClick={handleSave}
-                disabled={loading || subjects.length === 0 || (!isGoogleUser && !name.trim())}
+                disabled={loading || subjects.length === 0}
                 style={{
                   width: "100%",
-                  background: loading || subjects.length === 0 || (!isGoogleUser && !name.trim())
-                    ? "#9FE1CB" : "#1D9E75",
+                  background: loading || subjects.length === 0 ? "#9FE1CB" : "#1D9E75",
                   color: "white", border: "none", borderRadius: "100px",
                   padding: "14px", fontSize: "14px", fontWeight: "500",
                   cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
