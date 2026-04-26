@@ -1,20 +1,39 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useStore } from "../lib/store";
 import { discoverBooks, queryBooks, exportToDoc, exportToPpt, createShareLink } from "../lib/api";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/router";
 import toast from "react-hot-toast";
-import { Search, BookOpen, Send, Download, Share2, Save, Users, ChevronRight, X, FileText, Presentation } from "lucide-react";
+import { Search, BookOpen, Send, Download, Share2, Save, Users, ChevronRight, X, FileText, Presentation, ChevronDown } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
 // ── Landing Page ──────────────────────────────────────────────────────────────
 
 function LandingPage() {
   const router = useRouter();
+  const [showSignInMenu, setShowSignInMenu] = useState(false);
+  const [showHeroSignInMenu, setShowHeroSignInMenu] = useState(false);
+  const signInRef = useRef<HTMLDivElement>(null);
+  const heroSignInRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (signInRef.current && !signInRef.current.contains(e.target as Node)) setShowSignInMenu(false);
+      if (heroSignInRef.current && !heroSignInRef.current.contains(e.target as Node)) setShowHeroSignInMenu(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const signInOptions = [
+    { label: "Reader",      icon: "📚", path: "/sign-in?role=reader"      },
+    { label: "Publisher",   icon: "✍️", path: "/sign-in?role=publisher"   },
+    { label: "Institution", icon: "🏛️", path: "/sign-in?role=institution" },
+  ];
 
   const roles = [
     {
-      id:          "reader",
       emoji:       "📚",
       title:       "Reader",
       description: "Discover and query thousands of licensed books. Get instant cited answers on any topic. Free to start.",
@@ -24,70 +43,105 @@ function LandingPage() {
       path:        "/sign-up",
     },
     {
-      id:          "publisher",
       emoji:       "✍️",
       title:       "Author / Publisher",
       description: "Upload your books and earn ₹0.50 per query. Reach thousands of readers at institutions across India.",
-      cta:         "Publish your books",
+      cta:         "Start publishing",
       color:       "#7F77DD",
       bg:          "#EEEDFE",
-      path:        "/sign-up",
+      path:        "/publisher-signup",
     },
     {
-      id:          "institution",
       emoji:       "🏛️",
       title:       "Institution / Library",
       description: "Give your students access to thousands of books. Subscription starting at ₹2,00,000 per year.",
       cta:         "Get institution access",
       color:       "#378ADD",
       bg:          "#E6F1FB",
-      path:        "/sign-up",
+      path:        "/institution-signup",
     },
   ];
 
   const features = [
-    { icon: "🔍", title: "Discover by topic",     description: "Search any topic and instantly find the most relevant licensed books that cover it deeply." },
+    { icon: "🔍", title: "Discover by topic",     description: "Search any topic and find the most relevant licensed books that cover it deeply." },
     { icon: "💬", title: "Ask the book",           description: "Have a full conversation with any book. Get cited answers from specific chapters." },
-    { icon: "🧠", title: "AI with memory",         description: "Follow-up questions build on previous answers. Context is never lost in a session." },
-    { icon: "📄", title: "Export and share",       description: "Export your research as Word or PowerPoint. Share sessions with classmates instantly." },
-    { icon: "⚖️", title: "Licensed content",       description: "Every book is properly licensed. Publishers and authors are paid fairly per query." },
-    { icon: "🏛️", title: "Built for institutions", description: "Bulk student management, usage analytics, and query budget tracking for admins." },
+    { icon: "🧠", title: "AI with memory",         description: "Follow-up questions build on previous answers. Context is never lost." },
+    { icon: "📄", title: "Export and share",       description: "Export research as Word or PowerPoint. Share sessions with classmates." },
+    { icon: "⚖️", title: "Licensed content",       description: "Every book is properly licensed. Publishers are paid fairly per query." },
+    { icon: "🏛️", title: "Built for institutions", description: "Bulk student management, usage analytics, and query budget tracking." },
   ];
+
+  const DropdownMenu = ({ options, show, ref: menuRef }: any) => (
+    show ? (
+      <div ref={menuRef} style={{
+        position: "absolute", top: "calc(100% + 8px)", right: 0,
+        background: "white", border: "0.5px solid #e5e4dc",
+        borderRadius: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+        overflow: "hidden", zIndex: 100, minWidth: "180px",
+      }}>
+        {options.map((opt: any, i: number) => (
+          <button key={i} onClick={() => router.push(opt.path)} style={{
+            width: "100%", padding: "12px 16px", border: "none",
+            background: "none", display: "flex", alignItems: "center", gap: "10px",
+            fontSize: "14px", color: "#2C2C2A", cursor: "pointer",
+            fontFamily: "'DM Sans', sans-serif", textAlign: "left" as const,
+            borderBottom: i < options.length - 1 ? "0.5px solid #f0efea" : "none",
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = "#f9f9f7"}
+            onMouseLeave={e => e.currentTarget.style.background = "none"}
+          >
+            <span>{opt.icon}</span>
+            <span>{opt.label}</span>
+          </button>
+        ))}
+      </div>
+    ) : null
+  );
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#f9f9f7", minHeight: "100vh" }}>
 
-      {/* Nav */}
+      {/* Nav — Black */}
       <nav style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "16px 24px", background: "white",
-        borderBottom: "0.5px solid #e5e4dc",
+        padding: "16px 40px", background: "#1A1A18",
         position: "sticky", top: 0, zIndex: 50,
       }}>
-        <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "22px", color: "#2C2C2A", margin: 0 }}>
+        <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "22px", color: "white", margin: 0 }}>
           First<span style={{ color: "#1D9E75" }}>chapter</span>
           <span style={{ fontSize: "11px", color: "#1D9E75", marginLeft: "6px", fontFamily: "'DM Sans', sans-serif", fontWeight: "500" }}>.ai</span>
         </h1>
+
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <button onClick={() => router.push("/sign-in")} style={{
-            background: "none", border: "none", fontSize: "14px",
-            color: "#5F5E5A", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-          }}>
-            Sign in
-          </button>
+          {/* Sign in dropdown */}
+          <div ref={signInRef} style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowSignInMenu(!showSignInMenu)}
+              style={{
+                background: "none", border: "0.5px solid #3C3C3A", fontSize: "14px",
+                color: "white", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                borderRadius: "100px", padding: "10px 18px",
+                display: "flex", alignItems: "center", gap: "6px",
+              }}
+            >
+              Sign in <ChevronDown size={14} />
+            </button>
+            <DropdownMenu options={signInOptions} show={showSignInMenu} ref={signInRef} />
+          </div>
+
           <button onClick={() => router.push("/sign-up")} style={{
             background: "#1D9E75", color: "white", border: "none",
             borderRadius: "100px", padding: "10px 20px",
             fontSize: "14px", fontWeight: "500", cursor: "pointer",
             fontFamily: "'DM Sans', sans-serif",
           }}>
-            Start free
+            Start reading free
           </button>
         </div>
       </nav>
 
       {/* Hero */}
-      <section style={{ padding: "60px 24px", textAlign: "center", background: "white" }}>
+      <section style={{ padding: "80px 40px 60px", textAlign: "center", background: "white" }}>
         <div style={{ display: "inline-block", background: "#E1F5EE", borderRadius: "100px", padding: "6px 16px", marginBottom: "24px" }}>
           <p style={{ fontSize: "12px", color: "#0F6E56", fontWeight: "500", margin: 0 }}>
             🚀 India's first AI-powered licensed book platform
@@ -96,7 +150,7 @@ function LandingPage() {
 
         <h1 style={{
           fontFamily: "'DM Serif Display', serif",
-          fontSize: "clamp(36px, 8vw, 72px)", lineHeight: 1.05,
+          fontSize: "clamp(40px, 8vw, 80px)", lineHeight: 1.05,
           color: "#2C2C2A", margin: "0 0 24px",
           letterSpacing: "-2px",
           maxWidth: "900px", marginLeft: "auto", marginRight: "auto",
@@ -107,13 +161,14 @@ function LandingPage() {
 
         <p style={{
           fontSize: "clamp(16px, 3vw, 20px)", color: "#888780", lineHeight: 1.6,
-          maxWidth: "600px", margin: "0 auto 48px", fontWeight: "300",
+          maxWidth: "560px", margin: "0 auto 48px", fontWeight: "300",
         }}>
           Ask any question. Get cited answers from thousands of licensed books.
           Built for readers, authors and institutions.
         </p>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "center", marginBottom: "24px" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "center", marginBottom: "24px" }}>
+          {/* Start reading free */}
           <button onClick={() => router.push("/sign-up")} style={{
             background: "#1D9E75", color: "white", border: "none",
             borderRadius: "100px", padding: "16px 36px",
@@ -122,13 +177,22 @@ function LandingPage() {
           }}>
             Start reading free →
           </button>
-          <button onClick={() => router.push("/sign-in")} style={{
-            background: "white", color: "#2C2C2A", border: "1px solid #e5e4dc",
-            borderRadius: "100px", padding: "16px 36px",
-            fontSize: "16px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-          }}>
-            Sign in
-          </button>
+
+          {/* Sign in dropdown in hero */}
+          <div ref={heroSignInRef} style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowHeroSignInMenu(!showHeroSignInMenu)}
+              style={{
+                background: "white", color: "#2C2C2A", border: "1px solid #e5e4dc",
+                borderRadius: "100px", padding: "16px 36px",
+                fontSize: "16px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                display: "flex", alignItems: "center", gap: "8px",
+              }}
+            >
+              Sign in <ChevronDown size={16} />
+            </button>
+            <DropdownMenu options={signInOptions} show={showHeroSignInMenu} ref={heroSignInRef} />
+          </div>
         </div>
 
         <p style={{ fontSize: "13px", color: "#B4B2A9", margin: 0 }}>
@@ -137,7 +201,7 @@ function LandingPage() {
       </section>
 
       {/* Three roles */}
-      <section style={{ padding: "60px 24px", background: "#f9f9f7" }}>
+      <section style={{ padding: "60px 40px", background: "#f9f9f7" }}>
         <div style={{ textAlign: "center", marginBottom: "48px" }}>
           <p style={{ fontSize: "12px", fontWeight: "500", letterSpacing: "2px", color: "#888780", textTransform: "uppercase" as const, marginBottom: "12px" }}>
             Who is Firstchapter for?
@@ -148,10 +212,14 @@ function LandingPage() {
           </h2>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "24px", maxWidth: "1100px", margin: "0 auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "24px", maxWidth: "1100px", margin: "0 auto" }}>
           {roles.map((role, i) => (
-            <div key={i}
-              style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "20px", padding: "32px 24px", display: "flex", flexDirection: "column" as const }}
+            <div key={i} style={{
+              background: "white", border: "0.5px solid #e5e4dc",
+              borderRadius: "20px", padding: "32px 24px",
+              display: "flex", flexDirection: "column" as const,
+              transition: "transform 0.2s, box-shadow 0.2s",
+            }}
               onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 12px 40px rgba(0,0,0,0.08)"; }}
               onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
             >
@@ -174,12 +242,12 @@ function LandingPage() {
       </section>
 
       {/* How it works */}
-      <section style={{ padding: "60px 24px", background: "white" }}>
+      <section style={{ padding: "60px 40px", background: "white" }}>
         <div style={{ textAlign: "center", marginBottom: "48px" }}>
           <p style={{ fontSize: "12px", fontWeight: "500", letterSpacing: "2px", color: "#888780", textTransform: "uppercase" as const, marginBottom: "12px" }}>
             How it works
           </p>
-          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 6vw, 48px)", color: "#2C2C2A", margin: 0, letterSpacing: "-1px" }}>
+          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 5vw, 48px)", color: "#2C2C2A", margin: 0, letterSpacing: "-1px" }}>
             From question to <span style={{ color: "#1D9E75", fontStyle: "italic" }}>cited answer</span> in seconds
           </h2>
         </div>
@@ -198,14 +266,14 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* Features grid */}
-      <section style={{ padding: "60px 24px", background: "#f9f9f7" }}>
+      {/* Features */}
+      <section style={{ padding: "60px 40px", background: "#f9f9f7" }}>
         <div style={{ textAlign: "center", marginBottom: "48px" }}>
-          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 6vw, 48px)", color: "#2C2C2A", margin: 0, letterSpacing: "-1px" }}>
+          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 5vw, 48px)", color: "#2C2C2A", margin: 0, letterSpacing: "-1px" }}>
             Everything you need to <span style={{ color: "#1D9E75", fontStyle: "italic" }}>read smarter</span>
           </h2>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px", maxWidth: "1000px", margin: "0 auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "20px", maxWidth: "1000px", margin: "0 auto" }}>
           {features.map((feat, i) => (
             <div key={i} style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "16px", padding: "24px" }}>
               <p style={{ fontSize: "32px", margin: "0 0 14px" }}>{feat.icon}</p>
@@ -216,59 +284,87 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* Publisher CTA */}
-      <section style={{ padding: "60px 24px", background: "#2C2C2A", textAlign: "center" }}>
-        <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(24px, 5vw, 48px)", color: "white", margin: "0 0 16px", letterSpacing: "-1px" }}>
-          Are you an author or publisher?
-        </h2>
-        <p style={{ fontSize: "18px", color: "#888780", margin: "0 auto 40px", maxWidth: "500px", lineHeight: 1.6 }}>
-          Upload your books and earn ₹0.50 every time a reader queries your content. Paid monthly. No setup cost.
-        </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "center" }}>
-          <button onClick={() => router.push("/sign-up")} style={{
-            background: "#1D9E75", color: "white", border: "none",
-            borderRadius: "100px", padding: "16px 36px",
-            fontSize: "16px", fontWeight: "500", cursor: "pointer",
-            fontFamily: "'DM Sans', sans-serif",
-          }}>
-            Start publishing →
-          </button>
-          <button onClick={() => router.push("/sign-up")} style={{
-            background: "none", color: "white", border: "1px solid #5F5E5A",
-            borderRadius: "100px", padding: "16px 36px",
-            fontSize: "16px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-          }}>
-            For institutions
-          </button>
+      {/* Bottom CTA — Publishers and Institutions */}
+      <section style={{ padding: "60px 40px", background: "#1A1A18" }}>
+        <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: "48px" }}>
+            <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(28px, 5vw, 48px)", color: "white", margin: "0 0 16px", letterSpacing: "-1px" }}>
+              Join the knowledge ecosystem
+            </h2>
+            <p style={{ fontSize: "18px", color: "#888780", margin: 0, lineHeight: 1.6 }}>
+              Whether you create knowledge or distribute it — Firstchapter is built for you.
+            </p>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "24px" }}>
+            {/* Publisher CTA */}
+            <div style={{ background: "#2C2C2A", borderRadius: "20px", padding: "32px" }}>
+              <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "#EEEDFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", marginBottom: "16px" }}>
+                ✍️
+              </div>
+              <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "24px", color: "white", margin: "0 0 10px" }}>
+                Authors & Publishers
+              </h3>
+              <p style={{ fontSize: "14px", color: "#888780", lineHeight: 1.6, margin: "0 0 24px" }}>
+                Upload your books and earn ₹0.50 every time a reader queries your content. Paid monthly. No setup cost.
+              </p>
+              <button onClick={() => router.push("/publisher-signup")} style={{
+                background: "#7F77DD", color: "white", border: "none",
+                borderRadius: "100px", padding: "13px 28px",
+                fontSize: "14px", fontWeight: "500", cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif", width: "100%",
+              }}>
+                Start publishing →
+              </button>
+            </div>
+
+            {/* Institution CTA */}
+            <div style={{ background: "#2C2C2A", borderRadius: "20px", padding: "32px" }}>
+              <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "#E6F1FB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", marginBottom: "16px" }}>
+                🏛️
+              </div>
+              <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "24px", color: "white", margin: "0 0 10px" }}>
+                Institutions & Libraries
+              </h3>
+              <p style={{ fontSize: "14px", color: "#888780", lineHeight: 1.6, margin: "0 0 24px" }}>
+                Give your students access to thousands of books. Flat annual subscription. Starting at ₹2,00,000/year.
+              </p>
+              <button onClick={() => router.push("/institution-signup")} style={{
+                background: "#378ADD", color: "white", border: "none",
+                borderRadius: "100px", padding: "13px 28px",
+                fontSize: "14px", fontWeight: "500", cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif", width: "100%",
+              }}>
+                Get institution access →
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer style={{ padding: "32px 24px", background: "#1A1A18", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "16px" }}>
+      <footer style={{ padding: "32px 40px", background: "#111110", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "16px" }}>
         <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "20px", color: "white", margin: 0 }}>
           First<span style={{ color: "#1D9E75" }}>chapter</span>.ai
         </h1>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "20px" }}>
           {["For Readers", "For Publishers", "For Institutions", "Privacy", "Terms"].map((link, i) => (
-            <p key={i} style={{ fontSize: "13px", color: "#888780", margin: 0, cursor: "pointer" }}>{link}</p>
+            <p key={i} style={{ fontSize: "13px", color: "#5F5E5A", margin: 0, cursor: "pointer" }}
+              onMouseEnter={e => e.currentTarget.style.color = "#888780"}
+              onMouseLeave={e => e.currentTarget.style.color = "#5F5E5A"}
+            >{link}</p>
           ))}
         </div>
-        <p style={{ fontSize: "12px", color: "#5F5E5A", margin: 0 }}>© 2026 Firstchapter.ai — Chennai, India</p>
+        <p style={{ fontSize: "12px", color: "#3C3C3A", margin: 0 }}>© 2026 Firstchapter.ai — Chennai, India</p>
       </footer>
     </div>
   );
 }
 
 // ── Book Tile ─────────────────────────────────────────────────────────────────
-
 function BookTile({ book, selected, onToggle }: any) {
   return (
-    <div
-      onClick={() => onToggle(book.book_id)}
-      className={`relative cursor-pointer rounded-xl border p-4 transition-all ${
-        selected ? "border-brand-400 bg-brand-50 shadow-sm" : "border-gray-200 bg-white hover:border-brand-100 hover:bg-gray-50"
-      }`}
-    >
+    <div onClick={() => onToggle(book.book_id)} className={`relative cursor-pointer rounded-xl border p-4 transition-all ${selected ? "border-brand-400 bg-brand-50 shadow-sm" : "border-gray-200 bg-white hover:border-brand-100 hover:bg-gray-50"}`}>
       {selected && (
         <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-brand-400 flex items-center justify-center">
           <span className="text-white text-xs font-bold">✓</span>
@@ -282,9 +378,7 @@ function BookTile({ book, selected, onToggle }: any) {
           <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{book.category}</span>
         </div>
       </div>
-      {book.topic_coverage && (
-        <p className="mt-3 text-xs text-gray-600 leading-relaxed line-clamp-3">{book.topic_coverage}</p>
-      )}
+      {book.topic_coverage && <p className="mt-3 text-xs text-gray-600 leading-relaxed line-clamp-3">{book.topic_coverage}</p>}
       <div className="mt-2 flex items-center gap-1">
         <div className="h-1 rounded-full bg-brand-400" style={{ width: `${Math.round((book.score || 0.5) * 100)}%`, maxWidth: "100%" }} />
         <span className="text-xs text-gray-400 ml-1">{Math.round((book.score || 0.5) * 100)}% match</span>
@@ -294,7 +388,6 @@ function BookTile({ book, selected, onToggle }: any) {
 }
 
 // ── Chat Message ──────────────────────────────────────────────────────────────
-
 function ChatMessage({ message, onSuggestionClick }: { message: any; onSuggestionClick?: (s: string) => void }) {
   const isUser = message.role === "user";
   return (
@@ -306,9 +399,7 @@ function ChatMessage({ message, onSuggestionClick }: { message: any; onSuggestio
         {!isUser && message.sources && message.sources.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">
             {message.sources.map((s: any, i: number) => (
-              <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">
-                {s.book_title} — {s.chapter}
-              </span>
+              <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{s.book_title} — {s.chapter}</span>
             ))}
           </div>
         )}
@@ -316,8 +407,7 @@ function ChatMessage({ message, onSuggestionClick }: { message: any; onSuggestio
           <div className="mt-2 flex flex-col gap-1.5">
             <p className="text-xs text-gray-400 ml-1">You might also ask:</p>
             {message.suggestions.map((s: string, i: number) => (
-              <button key={i} onClick={() => onSuggestionClick && onSuggestionClick(s)}
-                className="text-left text-xs px-3 py-2 rounded-xl border border-brand-100 text-brand-600 bg-brand-50 hover:bg-brand-100 transition-colors">
+              <button key={i} onClick={() => onSuggestionClick && onSuggestionClick(s)} className="text-left text-xs px-3 py-2 rounded-xl border border-brand-100 text-brand-600 bg-brand-50 hover:bg-brand-100 transition-colors">
                 → {s}
               </button>
             ))}
@@ -329,35 +419,28 @@ function ChatMessage({ message, onSuggestionClick }: { message: any; onSuggestio
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
-
 function Sidebar({ view, onSetView }: any) {
   const { queriesLeft, resetChat } = useStore();
   const { user } = useUser();
   const { signOut } = useClerk();
-
   const navItems = [
     { id: "home",    label: "Home",    icon: Search   },
     { id: "history", label: "History", icon: BookOpen },
     { id: "saved",   label: "Saved",   icon: Save     },
   ];
-
   return (
     <aside className="w-56 border-r border-gray-100 bg-white flex flex-col h-full">
       <div className="p-5 border-b border-gray-100">
-        <span className="font-serif text-xl text-gray-900">
-          First<span className="text-brand-400">chapter</span>
-        </span>
+        <span className="font-serif text-xl text-gray-900">First<span className="text-brand-400">chapter</span></span>
       </div>
       <nav className="flex-1 p-3 space-y-1">
         {navItems.map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => { onSetView(id); if (id === "home") resetChat(); }}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${view === id ? "bg-brand-50 text-brand-600 font-medium" : "text-gray-600 hover:bg-gray-50"}`}>
-            <Icon size={16} />
-            {label}
+            <Icon size={16} />{label}
           </button>
         ))}
       </nav>
-
       {user && (
         <div className="p-4 border-t border-gray-100">
           <div className="flex items-center gap-2 mb-3">
@@ -371,12 +454,9 @@ function Sidebar({ view, onSetView }: any) {
               </p>
             </div>
           </div>
-          <button onClick={() => signOut()} className="w-full text-xs text-gray-400 hover:text-gray-600 text-left px-1">
-            Sign out
-          </button>
+          <button onClick={() => signOut()} className="w-full text-xs text-gray-400 hover:text-gray-600 text-left px-1">Sign out</button>
         </div>
       )}
-
       <div className="p-4 border-t border-gray-100">
         <div className="bg-gray-50 rounded-lg p-3">
           <p className="text-xs text-gray-500 mb-1">Queries remaining</p>
@@ -391,66 +471,36 @@ function Sidebar({ view, onSetView }: any) {
 }
 
 // ── Main App ──────────────────────────────────────────────────────────────────
-
 export default function Home() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
-
-  const {
-    topic, setTopic,
-    discoveredBooks, setDiscoveredBooks,
-    selectedBookIds, toggleBookSelection,
-    isDiscovering, setIsDiscovering,
-    sessionId, setSessionId,
-    messages, addMessage,
-    isQuerying, setIsQuerying,
-    queriesLeft, setQueriesLeft,
-    view, setView, resetChat,
-  } = useStore();
-
-  const [inputValue, setInputValue]   = useState("");
-  const [chatInput, setChatInput]     = useState("");
-  const [showExport, setShowExport]   = useState(false);
+  const { topic, setTopic, discoveredBooks, setDiscoveredBooks, selectedBookIds, toggleBookSelection, isDiscovering, setIsDiscovering, sessionId, setSessionId, messages, addMessage, isQuerying, setIsQuerying, queriesLeft, setQueriesLeft, view, setView, resetChat } = useStore();
+  const [inputValue, setInputValue] = useState("");
+  const [chatInput, setChatInput] = useState("");
+  const [showExport, setShowExport] = useState(false);
 
   if (!isLoaded) return null;
   if (!user) return <LandingPage />;
 
-  // Check role from both metadata locations
   const role = (user.unsafeMetadata?.role || user.publicMetadata?.role) as string;
-
-  // Redirect publishers and institutions
   if (role === "publisher"   && typeof window !== "undefined" && window.location.pathname === "/") { router.push("/publisher");   return null; }
   if (role === "institution" && typeof window !== "undefined" && window.location.pathname === "/") { router.push("/institution"); return null; }
-
-  // If no role set yet — go to onboarding
-  if (!role && typeof window !== "undefined" && window.location.pathname === "/") {
-    router.push("/onboarding");
-    return null;
-  }
+  if (!role && typeof window !== "undefined" && window.location.pathname === "/") { router.push("/onboarding"); return null; }
 
   const handleDiscover = async () => {
     if (!inputValue.trim()) return;
-    setTopic(inputValue);
-    setIsDiscovering(true);
-    setView("discover");
+    setTopic(inputValue); setIsDiscovering(true); setView("discover");
     try {
       const data = await discoverBooks(inputValue);
       setDiscoveredBooks(data.books || []);
-    } catch (e) {
-      toast.error("Could not find books. Try again.");
-      setDiscoveredBooks([]);
-    } finally {
-      setIsDiscovering(false);
-    }
+    } catch { toast.error("Could not find books. Try again."); setDiscoveredBooks([]); }
+    finally { setIsDiscovering(false); }
   };
 
   const handleQuery = async () => {
     if (!chatInput.trim()) return;
-    const question = chatInput.trim();
-    setChatInput("");
-    setView("chat");
-    const userMsg = { id: uuidv4(), role: "user" as const, content: question, timestamp: new Date().toISOString() };
-    addMessage(userMsg);
+    const question = chatInput.trim(); setChatInput(""); setView("chat");
+    addMessage({ id: uuidv4(), role: "user" as const, content: question, timestamp: new Date().toISOString() });
     setIsQuerying(true);
     try {
       const history = messages.map(m => ({ role: m.role, content: m.content }));
@@ -458,42 +508,27 @@ export default function Home() {
       if (!sessionId) setSessionId(data.session_id);
       setQueriesLeft(data.queries_remaining);
       addMessage({ id: uuidv4(), role: "assistant", content: data.answer, sources: data.sources, suggestions: data.suggestions || [], timestamp: new Date().toISOString() });
-    } catch (e: any) {
-      toast.error(e?.message || "Query failed.");
-    } finally {
-      setIsQuerying(false);
-    }
+    } catch (e: any) { toast.error(e?.message || "Query failed."); }
+    finally { setIsQuerying(false); }
   };
 
   const handleExportDoc = async () => { if (!sessionId) return; await exportToDoc(sessionId, topic || "Firstchapter Session"); toast.success("Downloaded as Word document"); };
   const handleExportPpt = async () => { if (!sessionId) return; await exportToPpt(sessionId, topic || "Firstchapter Session"); toast.success("Downloaded as PowerPoint"); };
   const handleShare = async () => {
     if (!sessionId) return;
-    try {
-      const data = await createShareLink("", sessionId);
-      await navigator.clipboard.writeText(data.share_url);
-      toast.success("Share link copied!");
-    } catch { toast.error("Could not create share link"); }
+    try { const data = await createShareLink("", sessionId); await navigator.clipboard.writeText(data.share_url); toast.success("Share link copied!"); }
+    catch { toast.error("Could not create share link"); }
   };
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans">
-
-      {/* Sidebar — hidden on mobile */}
-      <div className="hidden md:flex">
-        <Sidebar view={view} onSetView={setView} />
-      </div>
-
+      <div className="hidden md:flex"><Sidebar view={view} onSetView={setView} /></div>
       <main className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-0">
 
         {/* Mobile header */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
-          <span className="font-serif text-xl text-gray-900">
-            First<span className="text-brand-400">chapter</span>
-          </span>
-          <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center text-xs font-medium text-brand-600">
-            {user?.firstName?.[0] || "U"}
-          </div>
+          <span className="font-serif text-xl text-gray-900">First<span className="text-brand-400">chapter</span></span>
+          <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center text-xs font-medium text-brand-600">{user?.firstName?.[0] || "U"}</div>
         </div>
 
         {/* HOME */}
@@ -502,18 +537,14 @@ export default function Home() {
             <h1 className="font-serif text-3xl md:text-4xl text-gray-900 mb-2 text-center">
               What do you want to <span className="text-brand-400 italic">explore</span> today?
             </h1>
-            <p className="text-gray-500 mb-8 text-center text-sm">
-              Type a topic or question — we'll find the books that answer it.
-            </p>
+            <p className="text-gray-500 mb-8 text-center text-sm">Type a topic or question — we'll find the books that answer it.</p>
             <div className="w-full max-w-xl">
               <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
                 <Search size={18} className="text-gray-400 flex-shrink-0" />
                 <input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => e.key === "Enter" && handleDiscover()}
                   placeholder="e.g. What causes market bubbles?"
                   className="flex-1 outline-none text-sm text-gray-800 placeholder-gray-400 bg-transparent" />
-                <button onClick={handleDiscover} className="bg-brand-400 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-brand-600 transition-colors">
-                  Search
-                </button>
+                <button onClick={handleDiscover} className="bg-brand-400 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-brand-600 transition-colors">Search</button>
               </div>
             </div>
           </div>
@@ -579,12 +610,8 @@ export default function Home() {
                     <button onClick={() => setShowExport(!showExport)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"><Download size={16} /></button>
                     {showExport && (
                       <div className="absolute right-0 top-9 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-10 min-w-[160px]">
-                        <button onClick={() => { handleExportDoc(); setShowExport(false); }} className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
-                          <FileText size={14} /> Export to Word
-                        </button>
-                        <button onClick={() => { handleExportPpt(); setShowExport(false); }} className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
-                          <Presentation size={14} /> Export to PPT
-                        </button>
+                        <button onClick={() => { handleExportDoc(); setShowExport(false); }} className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"><FileText size={14} /> Export to Word</button>
+                        <button onClick={() => { handleExportPpt(); setShowExport(false); }} className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"><Presentation size={14} /> Export to PPT</button>
                       </div>
                     )}
                   </div>
@@ -592,7 +619,6 @@ export default function Home() {
                 </div>
               )}
             </div>
-
             <div className="flex-1 overflow-y-auto p-4">
               {messages.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full text-center px-4">
@@ -600,18 +626,13 @@ export default function Home() {
                   <p className="text-gray-700 font-medium text-sm mb-1">Ready to explore</p>
                   <p className="text-gray-400 text-xs mb-6">Try one of these to get started</p>
                   <div className="flex flex-col gap-2 w-full max-w-lg">
-                    {["Give me an overview of this book", "What are the main ideas and arguments?", "What is the most important lesson from this book?", "Summarise the key concepts chapter by chapter", "What problems does this book try to solve?", "How is this book relevant to today's world?"].map((q, i) => (
-                      <button key={i} onClick={() => setChatInput(q)}
-                        className="text-left text-xs px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 bg-white hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-all">
-                        → {q}
-                      </button>
+                    {["Give me an overview of this book", "What are the main ideas and arguments?", "What is the most important lesson?", "Summarise the key concepts chapter by chapter", "What problems does this book solve?", "How is this book relevant to today's world?"].map((q, i) => (
+                      <button key={i} onClick={() => setChatInput(q)} className="text-left text-xs px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 bg-white hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-all">→ {q}</button>
                     ))}
                   </div>
                 </div>
               )}
-              {messages.map(m => (
-                <ChatMessage key={m.id} message={m} onSuggestionClick={s => setChatInput(s)} />
-              ))}
+              {messages.map(m => <ChatMessage key={m.id} message={m} onSuggestionClick={s => setChatInput(s)} />)}
               {isQuerying && (
                 <div className="flex justify-start mb-4">
                   <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3">
@@ -622,14 +643,12 @@ export default function Home() {
                 </div>
               )}
             </div>
-
             <div className="p-4 border-t border-gray-100 bg-white">
               <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
                 <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleQuery()}
                   placeholder="Ask a follow-up question..."
                   className="flex-1 outline-none text-sm bg-transparent placeholder-gray-400" />
-                <button onClick={handleQuery} disabled={!chatInput.trim() || isQuerying}
-                  className="w-8 h-8 rounded-full bg-brand-400 flex items-center justify-center disabled:opacity-40 hover:bg-brand-600 transition-colors">
+                <button onClick={handleQuery} disabled={!chatInput.trim() || isQuerying} className="w-8 h-8 rounded-full bg-brand-400 flex items-center justify-center disabled:opacity-40 hover:bg-brand-600 transition-colors">
                   <Send size={14} className="text-white" />
                 </button>
               </div>
@@ -655,9 +674,7 @@ export default function Home() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm text-gray-900 truncate">{session.topic}</p>
                       <div className="flex flex-wrap gap-1 mt-1.5">
-                        {session.books.map((book, j) => (
-                          <span key={j} className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{book}</span>
-                        ))}
+                        {session.books.map((book, j) => <span key={j} className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{book}</span>)}
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -698,31 +715,22 @@ export default function Home() {
         )}
       </main>
 
-      {/* Mobile bottom navigation */}
+      {/* Mobile bottom nav */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex items-center justify-around px-2 py-2 z-50">
-        <button onClick={() => { setView("home"); resetChat(); }}
-          className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${view === "home" ? "text-brand-400" : "text-gray-400"}`}>
-          <Search size={20} />
-          <span className="text-xs">Home</span>
+        <button onClick={() => { setView("home"); resetChat(); }} className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${view === "home" ? "text-brand-400" : "text-gray-400"}`}>
+          <Search size={20} /><span className="text-xs">Home</span>
         </button>
-        <button onClick={() => setView("history")}
-          className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${view === "history" ? "text-brand-400" : "text-gray-400"}`}>
-          <BookOpen size={20} />
-          <span className="text-xs">History</span>
+        <button onClick={() => setView("history")} className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${view === "history" ? "text-brand-400" : "text-gray-400"}`}>
+          <BookOpen size={20} /><span className="text-xs">History</span>
         </button>
-        <button onClick={() => setView("saved")}
-          className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${view === "saved" ? "text-brand-400" : "text-gray-400"}`}>
-          <Save size={20} />
-          <span className="text-xs">Saved</span>
+        <button onClick={() => setView("saved")} className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${view === "saved" ? "text-brand-400" : "text-gray-400"}`}>
+          <Save size={20} /><span className="text-xs">Saved</span>
         </button>
         <div className="flex flex-col items-center gap-1 px-4 py-2">
-          <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center text-xs font-medium text-brand-600">
-            {user?.firstName?.[0] || "U"}
-          </div>
+          <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center text-xs font-medium text-brand-600">{user?.firstName?.[0] || "U"}</div>
           <span className="text-xs text-gray-400">{user?.firstName || "Me"}</span>
         </div>
       </div>
-
     </div>
   );
 }
