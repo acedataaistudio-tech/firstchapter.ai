@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/router";
 
