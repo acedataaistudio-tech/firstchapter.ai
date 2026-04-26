@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useStore } from "../lib/store";
 import { discoverBooks, queryBooks, exportToDoc, exportToPpt, createShareLink } from "../lib/api";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/router";
 import toast from "react-hot-toast";
-import { Search, BookOpen, Send, Download, Share2, Save, Users, ChevronRight, X, FileText, Presentation, ChevronDown } from "lucide-react";
+import { Search, BookOpen, Send, Download, Share2, Save, Users, ChevronRight, X, FileText, Presentation, ChevronDown, Trash2, Bookmark } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // ── Landing Page ──────────────────────────────────────────────────────────────
 
@@ -388,7 +390,7 @@ function BookTile({ book, selected, onToggle }: any) {
 }
 
 // ── Chat Message ──────────────────────────────────────────────────────────────
-function ChatMessage({ message, onSuggestionClick }: { message: any; onSuggestionClick?: (s: string) => void }) {
+function ChatMessage({ message, onSuggestionClick, onSave }: { message: any; onSuggestionClick?: (s: string) => void; onSave?: (msg: any) => void }) {
   const isUser = message.role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-4`}>
@@ -397,10 +399,15 @@ function ChatMessage({ message, onSuggestionClick }: { message: any; onSuggestio
           {message.content}
         </div>
         {!isUser && message.sources && message.sources.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
+          <div className="mt-1.5 flex flex-wrap gap-1 items-center">
             {message.sources.map((s: any, i: number) => (
               <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{s.book_title} — {s.chapter}</span>
             ))}
+            {onSave && (
+              <button onClick={() => onSave(message)} className="text-xs px-2 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-100 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-100 transition-all flex items-center gap-1">
+                <Bookmark size={10} /> Save
+              </button>
+            )}
           </div>
         )}
         {!isUser && message.suggestions && message.suggestions.length > 0 && (
@@ -520,6 +527,26 @@ export default function Home() {
     catch { toast.error("Could not create share link"); }
   };
 
+  const handleSaveAnswer = async (message: any) => {
+    if (!message.sources || message.sources.length === 0) return;
+    const source = message.sources[0];
+    try {
+      await fetch(`${API_URL}/api/saved/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-id": user.id },
+        body: JSON.stringify({
+          query_id: message.id,
+          title:    message.content.slice(0, 80),
+          question: messages[messages.indexOf(message) - 1]?.content || "",
+          answer:   message.content,
+          book:     source.book_title || "",
+          chapter:  source.chapter || "",
+        }),
+      });
+      toast.success("Answer saved! ✓");
+    } catch { toast.error("Could not save answer"); }
+  };
+
   return (
     <div className="flex h-screen bg-gray-50 font-sans">
       <div className="hidden md:flex"><Sidebar view={view} onSetView={setView} /></div>
@@ -632,7 +659,7 @@ export default function Home() {
                   </div>
                 </div>
               )}
-              {messages.map(m => <ChatMessage key={m.id} message={m} onSuggestionClick={s => setChatInput(s)} />)}
+              {messages.map(m => <ChatMessage key={m.id} message={m} onSuggestionClick={s => setChatInput(s)} onSave={handleSaveAnswer} />)}
               {isQuerying && (
                 <div className="flex justify-start mb-4">
                   <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3">
@@ -658,60 +685,12 @@ export default function Home() {
 
         {/* HISTORY */}
         {view === "history" && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <h2 className="font-serif text-2xl text-gray-900 mb-6">Previous chats</h2>
-            <div className="space-y-3 max-w-2xl">
-              {[
-                { topic: "Economic theories in Wealth of Nations",   books: ["Wealth of Nations"],                        date: "Today, 2:30 PM",      queries: 8  },
-                { topic: "Leadership strategies from Art of War",     books: ["The Art of War"],                           date: "Today, 11:20 AM",     queries: 12 },
-                { topic: "Stoic philosophy and modern life",          books: ["Meditations"],                              date: "Yesterday, 4:15 PM",  queries: 6  },
-                { topic: "Political power and governance",            books: ["The Prince", "The Republic"],               date: "Yesterday, 10:00 AM", queries: 15 },
-                { topic: "Self development and mindset",              books: ["Think and Grow Rich", "As a Man Thinketh"], date: "2 days ago",          queries: 9  },
-              ].map((session, i) => (
-                <div key={i} onClick={() => { setView("chat"); setTopic(session.topic); }}
-                  className="bg-white border border-gray-100 rounded-xl p-4 cursor-pointer hover:border-brand-100 hover:shadow-sm transition-all">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-gray-900 truncate">{session.topic}</p>
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {session.books.map((book, j) => <span key={j} className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{book}</span>)}
-                      </div>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-xs text-gray-400">{session.date}</p>
-                      <p className="text-xs text-gray-400 mt-1">{session.queries} queries</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <HistoryView userId={user.id} onResumeSession={(topic) => { setView("chat"); setTopic(topic); }} />
         )}
 
         {/* SAVED */}
         {view === "saved" && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <h2 className="font-serif text-2xl text-gray-900 mb-6">Saved answers</h2>
-            <div className="space-y-3 max-w-2xl">
-              {[
-                { question: "What does Sun Tzu say about knowing your enemy?", answer: "Sun Tzu emphasizes that knowing both yourself and your enemy is the key to victory. He states that if you know the enemy and know yourself, you need not fear the result of a hundred battles.", book: "The Art of War", chapter: "Chapter 3 — Strategic Attack", saved: "Today, 2:45 PM" },
-                { question: "What is Adam Smith's theory of the invisible hand?", answer: "Adam Smith's invisible hand describes how individuals pursuing their own self-interest in a free market economy unintentionally promote the general good of society through the mechanism of market competition.", book: "Wealth of Nations", chapter: "Book IV — Systems of Political Economy", saved: "Yesterday, 11:30 AM" },
-                { question: "How does Marcus Aurelius define happiness?", answer: "Marcus Aurelius defines happiness not as external pleasure but as virtue and inner tranquility. He writes that the happiness of your life depends upon the quality of your thoughts.", book: "Meditations", chapter: "Book V", saved: "2 days ago" },
-              ].map((item, i) => (
-                <div key={i} className="bg-white border border-gray-100 rounded-xl p-4">
-                  <p className="font-medium text-sm text-gray-900 mb-2">{item.question}</p>
-                  <p className="text-sm text-gray-600 leading-relaxed mb-3 line-clamp-3">{item.answer}</p>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex gap-1 flex-wrap">
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{item.book}</span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-100">{item.chapter}</span>
-                    </div>
-                    <p className="text-xs text-gray-400">{item.saved}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <SavedView userId={user.id} />
         )}
       </main>
 
@@ -731,6 +710,189 @@ export default function Home() {
           <span className="text-xs text-gray-400">{user?.firstName || "Me"}</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── History View ──────────────────────────────────────────────────────────────
+function HistoryView({ userId, onResumeSession }: { userId: string; onResumeSession: (topic: string) => void }) {
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchHistory = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/history/`, {
+        headers: { "x-user-id": userId },
+      });
+      const data = await res.json();
+      setSessions(data.history || []);
+    } catch (e) {
+      console.error("Failed to fetch history:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
+
+  const handleDelete = async (sessionId: string) => {
+    try {
+      await fetch(`${API_URL}/api/history/${sessionId}`, {
+        method: "DELETE",
+        headers: { "x-user-id": userId },
+      });
+      setSessions(prev => prev.filter(s => s.session_id !== sessionId));
+      toast.success("Session deleted");
+    } catch { toast.error("Failed to delete"); }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    if (hours < 1) return "Just now";
+    if (hours < 24) return `${hours}h ago`;
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days} days ago`;
+    return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6">
+      <h2 className="font-serif text-2xl text-gray-900 mb-6">Previous chats</h2>
+      {loading ? (
+        <div className="flex items-center justify-center h-48">
+          <div className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : sessions.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-48 text-center">
+          <BookOpen size={32} className="text-gray-200 mb-3" />
+          <p className="text-gray-500 font-medium text-sm">No history yet</p>
+          <p className="text-gray-400 text-xs mt-1">Your past conversations will appear here</p>
+        </div>
+      ) : (
+        <div className="space-y-3 max-w-2xl">
+          {sessions.map((session, i) => (
+            <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 hover:border-brand-100 hover:shadow-sm transition-all group">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onResumeSession(session.topic)}>
+                  <p className="font-medium text-sm text-gray-900 truncate">{session.topic}</p>
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {(session.books || []).slice(0, 3).map((book: string, j: number) => (
+                      <span key={j} className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{book}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400">{formatDate(session.date)}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{session.queries} {session.queries === 1 ? "query" : "queries"}</p>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(session.session_id)}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-all"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Saved View ────────────────────────────────────────────────────────────────
+function SavedView({ userId }: { userId: string }) {
+  const [saved, setSaved] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchSaved = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/saved/`, {
+        headers: { "x-user-id": userId },
+      });
+      const data = await res.json();
+      setSaved(data.saved || []);
+    } catch (e) {
+      console.error("Failed to fetch saved:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => { fetchSaved(); }, [fetchSaved]);
+
+  const handleUnsave = async (savedId: string) => {
+    try {
+      await fetch(`${API_URL}/api/saved/${savedId}`, {
+        method: "DELETE",
+        headers: { "x-user-id": userId },
+      });
+      setSaved(prev => prev.filter(s => s.id !== savedId));
+      toast.success("Removed from saved");
+    } catch { toast.error("Failed to remove"); }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / 86400000);
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days} days ago`;
+    return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6">
+      <h2 className="font-serif text-2xl text-gray-900 mb-6">Saved answers</h2>
+      {loading ? (
+        <div className="flex items-center justify-center h-48">
+          <div className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : saved.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-48 text-center">
+          <Bookmark size={32} className="text-gray-200 mb-3" />
+          <p className="text-gray-500 font-medium text-sm">No saved answers yet</p>
+          <p className="text-gray-400 text-xs mt-1">Save answers from your conversations to find them here</p>
+        </div>
+      ) : (
+        <div className="space-y-3 max-w-2xl">
+          {saved.map((item, i) => (
+            <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 group">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <p className="font-medium text-sm text-gray-900 flex-1">{item.question}</p>
+                <button
+                  onClick={() => handleUnsave(item.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-all flex-shrink-0"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 leading-relaxed mb-3 line-clamp-3">{item.answer}</p>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex gap-1 flex-wrap">
+                  {item.book && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100">{item.book}</span>
+                  )}
+                  {item.chapter && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-100">{item.chapter}</span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400">{formatDate(item.created_at)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
