@@ -42,6 +42,14 @@ export default function OnboardingPage() {
     setStep(2);
   };
 
+useEffect(() => {
+  if (!isLoaded || !user) return;
+  const role = user.unsafeMetadata?.role || user.publicMetadata?.role;
+  if (role === "publisher")   router.push("/publisher");
+  if (role === "institution") router.push("/institution");
+  if (role === "reader" || role === "student") router.push("/reader-onboarding");
+}, [isLoaded, user]);
+
  const handleSubmit = async () => {
     if (!selectedRole || !name) return;
     setLoading(true);
@@ -63,7 +71,7 @@ export default function OnboardingPage() {
 
     if (selectedRole === "publisher")   router.push("/publisher-onboarding");
     if (selectedRole === "institution") router.push("/institution");
-    if (selectedRole === "student")     router.push("/");
+    if (selectedRole === "student") router.push("/reader-onboarding");
 };
 
   return (
