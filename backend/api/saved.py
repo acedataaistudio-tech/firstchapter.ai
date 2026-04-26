@@ -39,15 +39,15 @@ def save_answer(req: SaveRequest, x_user_id: str = Header(default="anonymous")):
         ))
         db = get_db()
         db.table("saved_answers").insert({
-            "id":       str(uuid_module.uuid4()),
-            "user_id":  x_user_id,
-            "query_id": req.query_id if valid_uuid else None,
-            "title":    req.title,
-            "question": req.question,
-            "answer":   req.answer,
-            "book":     req.book,
-            "chapter":  req.chapter,
-        }).execute()
+    "id":       str(uuid_module.uuid4()),
+    "user_id":  x_user_id,
+    "query_id": req.query_id if valid_uuid else None,
+    "title":    req.title,
+    "question": req.question,
+    "answer":   req.answer,
+    "book":     req.book,
+    "chapter":  req.chapter,
+}, count="exact").execute()
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
