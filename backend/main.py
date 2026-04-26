@@ -36,3 +36,14 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy", "version": "1.0.0"}
+
+@app.get("/debug")
+def debug():
+    from config import settings
+    return {
+        "supabase_url": settings.supabase_url,
+        "supabase_key_length": len(settings.supabase_key),
+        "supabase_key_prefix": settings.supabase_key[:20] if settings.supabase_key else "EMPTY",
+        "qdrant_url": settings.qdrant_url,
+        "qdrant_key_length": len(settings.qdrant_api_key),
+    }
