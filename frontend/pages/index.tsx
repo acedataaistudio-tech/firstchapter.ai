@@ -702,8 +702,22 @@ export default function Home() {
 
         {/* SAVED */}
         {view === "saved" && (
-          <SavedView userId={user.id} />
-        )}
+  <SavedView userId={user.id} onOpenSaved={(item) => {
+    resetChat();
+    setTopic(item.question);
+    // Load the saved Q&A as a chat session
+    addMessage({ id: uuidv4(), role: "user" as const, content: item.question, timestamp: item.created_at });
+    addMessage({ 
+      id: uuidv4(), 
+      role: "assistant" as const, 
+      content: item.answer, 
+      sources: item.book ? [{ book_title: item.book, chapter: item.chapter }] : [],
+      suggestions: [],
+      timestamp: item.created_at 
+    });
+    setView("chat");
+  }} />
+)}
       </main>
 
       {/* Mobile bottom nav */}
@@ -848,7 +862,7 @@ function HistoryView({ userId, onResumeSession }: {
 }
 
 // ── Saved View ────────────────────────────────────────────────────────────────
-function SavedView({ userId }: { userId: string }) {
+function SavedView({ userId, onOpenSaved }: { userId: string; onOpenSaved: (item: any) => void }) { userId: string }) {
   const [saved, setSaved] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -907,11 +921,12 @@ function SavedView({ userId }: { userId: string }) {
       ) : (
         <div className="space-y-3 max-w-2xl">
           {saved.map((item, i) => (
-            <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 group">
+  <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 group cursor-pointer hover:border-brand-100 hover:shadow-sm transition-all"
+    onClick={() => onOpenSaved(item)}>
               <div className="flex items-start justify-between gap-2 mb-2">
                 <p className="font-medium text-sm text-gray-900 flex-1">{item.question}</p>
                 <button
-                  onClick={() => handleUnsave(item.id)}
+  onClick={(e) => { e.stopPropagation(); handleUnsave(item.id); }}
                   className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-all flex-shrink-0"
                 >
                   <Trash2 size={14} />
