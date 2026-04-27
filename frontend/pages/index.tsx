@@ -538,13 +538,14 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-user-id": user.id },
         body: JSON.stringify({
-          query_id: message.id,
-          title:    message.content.slice(0, 80),
-          question: messages[messages.indexOf(message) - 1]?.content || "",
-          answer:   message.content,
-          book:     source.book_title || "",
-          chapter:  source.chapter || "",
-        }),
+  query_id: message.id,
+  title:    message.content.slice(0, 80),
+  question: messages[messages.indexOf(message) - 1]?.content || "",
+  answer:   message.content,
+  book:     source.book_title || "",
+  chapter:  source.chapter || "",
+  book_id:  source.book_id || "",
+}),
       });
       toast.success("Answer saved! ✓");
     } catch { toast.error("Could not save answer"); }
@@ -705,7 +706,8 @@ export default function Home() {
   <SavedView userId={user.id} onOpenSaved={(item) => {
     resetChat();
     setTopic(item.question);
-    // Load the saved Q&A as a chat session
+    // Find book_id from saved answer sources
+    if (item.book_id) toggleBookSelection(item.book_id);
     addMessage({ id: uuidv4(), role: "user" as const, content: item.question, timestamp: item.created_at });
     addMessage({ 
       id: uuidv4(), 
