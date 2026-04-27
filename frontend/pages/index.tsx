@@ -862,7 +862,7 @@ function HistoryView({ userId, onResumeSession }: {
 }
 
 // ── Saved View ────────────────────────────────────────────────────────────────
-function SavedView({ userId, onOpenSaved }: { userId: string; onOpenSaved: (item: any) => void }): JSX.Element { userId: string }) {
+function SavedView({ userId, onOpenSaved }: { userId: string; onOpenSaved: (item: any) => void }): JSX.Element {
   const [saved, setSaved] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
