@@ -4,6 +4,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+from langchain_community.callbacks.manager import get_openai_callback  # NEW # NEW: Import for token tracking
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchAny
 from generation.prompts import DISCOVERY_PROMPT
@@ -102,6 +103,7 @@ def discover_books(topic: str, top_k: int = 8) -> List[dict]:
         book.pop("snippet", None)
 
     return books[:top_k]
+
 def rewrite_vague_query(question: str) -> str:
     """
     Rewrite vague queries into more specific ones
@@ -128,6 +130,7 @@ def rewrite_vague_query(question: str) -> str:
         )
 
     return question
+
 def query_books(
     question: str,
     book_ids: Optional[List[str]] = None,
@@ -207,22 +210,37 @@ YOUR ANSWER WITH CITATIONS:
         | StrOutputParser()
     )
 
-    answer = chain.invoke(search_question)  # Use rewritten query
+    # ✅ NEW: Wrap the chain invocation with token tracking callback
+    with get_openai_callback() as cb:
+        answer = chain.invoke(search_question)  # Use rewritten query
+        
+        # Extract token usage from callback
+        input_tokens = cb.prompt_tokens
+        output_tokens = cb.completion_tokens
+        total_tokens = cb.total_tokens
+    
     source_docs = retriever.invoke(search_question)
     sources = extract_sources(source_docs)
 
     # Generate follow-up suggestions
-  # Generate follow-up suggestions
     suggestions = []
     try:
-        suggestions_response = llm.invoke(
-            f"Based on this Q&A, suggest 3 short follow-up questions "
-            f"a curious student might ask.\n"
-            f"Question: {question}\n"
-            f"Answer: {answer[:200]}\n"
-            f"Return ONLY a JSON array of 3 strings. "
-            f"Example: [\"question 1\", \"question 2\", \"question 3\"]"
-        )
+        # ✅ UPDATED: Track tokens for suggestions too
+        with get_openai_callback() as cb_suggestions:
+            suggestions_response = llm.invoke(
+                f"Based on this Q&A, suggest 3 short follow-up questions "
+                f"a curious student might ask.\n"
+                f"Question: {question}\n"
+                f"Answer: {answer[:200]}\n"
+                f"Return ONLY a JSON array of 3 strings. "
+                f"Example: [\"question 1\", \"question 2\", \"question 3\"]"
+            )
+            
+            # Add suggestions tokens to total
+            input_tokens += cb_suggestions.prompt_tokens
+            output_tokens += cb_suggestions.completion_tokens
+            total_tokens += cb_suggestions.total_tokens
+        
         import json
         raw = suggestions_response.content.strip()
         raw = raw.replace("```json", "").replace("```", "").strip()
@@ -235,8 +253,14 @@ YOUR ANSWER WITH CITATIONS:
             "How does this compare to other theories?",
         ]
 
+    # ✅ NEW: Return token information
     return {
-        "answer":      answer,
-        "sources":     sources,
-        "suggestions": suggestions,
+        "answer":        answer,
+        "sources":       sources,
+        "suggestions":   suggestions,
+        # ✅ NEW: Add token tracking data
+        "input_tokens":  input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens":  total_tokens,
+        "model":         settings.llm_model,  # From your settings
     }

@@ -8,8 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api import books, query, history, export, share, users, admin, saved, usage
 # NEW Phase 2.5 imports
 from api import mau_management, admin_cost_tracking
-from api import publisher_payout_management
-from api import colleges  # ← ADD THIS LINE
+from api import publisher_payout_management  # ← ADD THIS LINE
 from websocket_handler.websocket import router as ws_router
 import logging
 
@@ -41,14 +40,13 @@ app.include_router(users.router,   prefix="/api/users",   tags=["Users"])
 app.include_router(admin.router,   prefix="/api/admin",   tags=["Admin"])
 app.include_router(saved.router,   prefix="/api/saved",   tags=["Saved"])
 app.include_router(usage.router,   prefix="/api/usage",   tags=["Usage"])
-app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
 
 # ══════════════════════════════════════════════════════════════════
 # NEW: Phase 2.5 Routes
 # ══════════════════════════════════════════════════════════════════
 app.include_router(mau_management.router, prefix="/api", tags=["MAU Management"])
 app.include_router(admin_cost_tracking.router, prefix="/api", tags=["Admin Cost Tracking"])
-app.include_router(publisher_payout_management.router, prefix="/api", tags=["Publisher Payout Management"])  # ← This line must be here
+app.include_router(publisher_payout_management.router, prefix="/api", tags=["Publisher Payout Management"])  # ← ADD THIS LINE
 
 # WebSocket
 app.include_router(ws_router)

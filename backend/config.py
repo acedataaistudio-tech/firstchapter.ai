@@ -19,7 +19,10 @@ class Settings(BaseSettings):
     top_k_rerank: int = 5
     embedding_model: str = "text-embedding-3-small"
     llm_model: str = "gpt-4o-mini"
-
+# NEW: Add these 3 lines
+    razorpay_key_id: str = "rzp_test_dummy"
+    razorpay_key_secret: str = "dummy_secret"
+    razorpay_webhook_secret: str = "dummy_webhook"
     class Config:
         # Look for .env in backend folder regardless of where script is run from
         env_file = str(Path(__file__).parent / ".env")

@@ -16,4 +16,5 @@ frontend/.next/
 # Misc
 .DS_Store
 *.log
-/tmp/
+/tmp/rzp-key.csv 
+rzp-key.csv 
