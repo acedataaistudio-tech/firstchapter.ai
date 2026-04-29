@@ -17,7 +17,7 @@ export default async function handler(
       ? `${backendUrl}/api/colleges?search=${search}`
       : `${backendUrl}/api/colleges`;
     
-    console.log('Fetching from:', url); // Debug log
+    console.log('Fetching from:', url);
     
     const response = await fetch(url);
     
@@ -26,15 +26,19 @@ export default async function handler(
     }
     
     const data = await response.json();
-    console.log('Got colleges:', data.colleges?.length || 0); // Debug log
+    console.log('Got colleges:', data.colleges?.length || 0);
     
     return res.status(200).json(data);
     
   } catch (error) {
     console.error('Colleges API error:', error);
+    
+    // TypeScript-safe error handling
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
     return res.status(500).json({ 
       error: 'Failed to fetch colleges',
-      message: error.message,
+      message: errorMessage,
       colleges: []
     });
   }
