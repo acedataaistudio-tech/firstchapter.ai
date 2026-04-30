@@ -128,14 +128,14 @@ export default function InstitutionPage() {
                 color: "#2C2C2A",
                 margin: 0,
               }}>
-                {user.firstName || 'Admin'}
+                {user?.firstName || 'Admin'}
               </p>
               <p style={{
                 fontSize: "11px",
                 color: "#888780",
                 margin: 0,
               }}>
-                {user.emailAddresses[0].emailAddress}
+                {user?.emailAddresses?.[0]?.emailAddress || 'admin@example.com'}
               </p>
             </div>
           </div>
