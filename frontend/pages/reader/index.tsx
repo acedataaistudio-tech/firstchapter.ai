@@ -189,7 +189,7 @@ export default function ReaderDashboard() {
                 </p>
               </div>
 
-              {user.unsafeMetadata?.collegeName && (
+              {user.unsafeMetadata?.collegeName as string && (
                 <div style={{ marginBottom: "16px" }}>
                   <label style={{
                     fontSize: "12px",
