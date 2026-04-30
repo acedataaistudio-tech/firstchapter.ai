@@ -158,7 +158,7 @@ export default function ReaderDashboard() {
               Your Usage
             </h2>
             
-            <TokenDashboard />
+            <TokenDashboard userId={user.id} />
           </div>
         )}
 
