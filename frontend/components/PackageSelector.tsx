@@ -1,14 +1,17 @@
 /**
- * Package Selection Component
+ * Package Selection Component with Razorpay Integration
  * 
- * Shows available subscription packages with pricing and features
- * Handles both individual and institution packages
+ * Free package: Skip payment, create subscription directly
+ * Paid packages: Razorpay payment → verify → create subscription
  */
 
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, Zap, Users, Building2, Sparkles } from 'lucide-react';
+import { useRouter } from 'next/router';
+import { useUser } from '@clerk/nextjs';
+import { Check, Zap, Users, Building2, Sparkles, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Package {
   id: string;
@@ -25,12 +28,25 @@ interface Package {
 
 interface PackageSelectorProps {
   userType: 'individual' | 'institution';
-  onSelect: (pkg: Package) => void;
 }
 
-export function PackageSelector({ userType, onSelect }: PackageSelectorProps) {
+// Load Razorpay script
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
+export function PackageSelector({ userType }: PackageSelectorProps) {
+  const router = useRouter();
+  const { user } = useUser();
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processingPackageId, setProcessingPackageId] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
 
   useEffect(() => {
@@ -44,8 +60,188 @@ export function PackageSelector({ userType, onSelect }: PackageSelectorProps) {
       setPackages(data.packages || []);
     } catch (error) {
       console.error('Failed to fetch packages:', error);
+      toast.error('Failed to load packages');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const createSubscription = async (packageId: string, paymentId?: string) => {
+    try {
+      const response = await fetch('/api/subscriptions/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.id,
+          packageId,
+          paymentId: paymentId || null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create subscription');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Subscription creation error:', error);
+      throw error;
+    }
+  };
+
+  const handleFreePackage = async (pkg: Package) => {
+    if (!user) {
+      toast.error('Please sign in first');
+      router.push('/sign-in');
+      return;
+    }
+
+    setProcessingPackageId(pkg.id);
+
+    try {
+      toast.loading('Setting up your free account...', { id: 'free-setup' });
+
+      // Create subscription directly (no payment)
+      await createSubscription(pkg.id);
+
+      toast.success('Free account activated!', { id: 'free-setup' });
+      
+      // Redirect to homepage (book search interface)
+      setTimeout(() => {
+        router.push('/');
+      }, 1000);
+
+    } catch (error) {
+      console.error('Free package error:', error);
+      toast.error('Failed to activate free account', { id: 'free-setup' });
+    } finally {
+      setProcessingPackageId(null);
+    }
+  };
+
+  const handlePaidPackage = async (pkg: Package) => {
+    if (!user) {
+      toast.error('Please sign in first');
+      router.push('/sign-in');
+      return;
+    }
+
+    setProcessingPackageId(pkg.id);
+
+    try {
+      // Load Razorpay script
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        throw new Error('Failed to load Razorpay');
+      }
+
+      const price = billingCycle === 'monthly' ? pkg.price_monthly : pkg.price_yearly;
+      if (!price) {
+        throw new Error('Package price not available');
+      }
+
+      toast.loading('Opening payment...', { id: 'payment' });
+
+      // Create Razorpay order
+      const orderResponse = await fetch('/api/payment/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: price,
+          packageId: pkg.id,
+          packageName: pkg.name,
+          userId: user.id,
+        }),
+      });
+
+      if (!orderResponse.ok) {
+        throw new Error('Failed to create payment order');
+      }
+
+      const orderData = await orderResponse.json();
+      toast.dismiss('payment');
+
+      // Open Razorpay payment modal
+      const options = {
+        key: orderData.key_id,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'Firstchapter.ai',
+        description: `${pkg.name} Subscription`,
+        order_id: orderData.order_id,
+        prefill: {
+          name: `${user.firstName} ${user.lastName}`,
+          email: user.emailAddresses[0].emailAddress,
+        },
+        theme: {
+          color: '#1D9E75',
+        },
+        handler: async function (response: any) {
+          try {
+            toast.loading('Verifying payment...', { id: 'verify' });
+
+            // Verify payment
+            const verifyResponse = await fetch('/api/payment/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            if (!verifyResponse.ok) {
+              throw new Error('Payment verification failed');
+            }
+
+            const verifyData = await verifyResponse.json();
+            toast.success('Payment successful!', { id: 'verify' });
+
+            // Create subscription
+            toast.loading('Activating subscription...', { id: 'activate' });
+            await createSubscription(pkg.id, verifyData.payment_id);
+            toast.success('Subscription activated!', { id: 'activate' });
+
+            // Redirect to homepage
+            setTimeout(() => {
+              router.push('/');
+            }, 1500);
+
+          } catch (error) {
+            console.error('Payment handler error:', error);
+            toast.error('Failed to complete subscription', { id: 'verify' });
+          } finally {
+            setProcessingPackageId(null);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setProcessingPackageId(null);
+            toast.dismiss();
+          },
+        },
+      };
+
+      const razorpay = new (window as any).Razorpay(options);
+      razorpay.open();
+
+    } catch (error) {
+      console.error('Payment error:', error);
+      toast.error('Failed to process payment', { id: 'payment' });
+      setProcessingPackageId(null);
+    }
+  };
+
+  const handleSelectPackage = async (pkg: Package) => {
+    // Free package: Skip payment
+    if (pkg.name === 'Free' || !pkg.price_yearly) {
+      await handleFreePackage(pkg);
+    } 
+    // Paid package: Razorpay payment
+    else {
+      await handlePaidPackage(pkg);
     }
   };
 
@@ -118,7 +314,7 @@ export function PackageSelector({ userType, onSelect }: PackageSelectorProps) {
             >
               Yearly
               <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-                Save 20%
+                Save 10%
               </span>
             </button>
           </div>
@@ -132,6 +328,7 @@ export function PackageSelector({ userType, onSelect }: PackageSelectorProps) {
         {packages.map((pkg) => {
           const price = billingCycle === 'monthly' ? pkg.price_monthly : pkg.price_yearly;
           const isPopular = pkg.popular || pkg.name.includes('Premium');
+          const isProcessing = processingPackageId === pkg.id;
 
           return (
             <div
@@ -176,11 +373,6 @@ export function PackageSelector({ userType, onSelect }: PackageSelectorProps) {
                         /{billingCycle === 'yearly' || userType === 'institution' ? 'year' : 'month'}
                       </span>
                     </div>
-                    {userType === 'institution' && (
-                      <p className="text-sm text-gray-600 mt-1">
-                        Includes {pkg.features[0]}
-                      </p>
-                    )}
                   </div>
                 ) : (
                   <div className="mb-6">
@@ -193,7 +385,7 @@ export function PackageSelector({ userType, onSelect }: PackageSelectorProps) {
                   {pkg.features.slice(userType === 'institution' ? 1 : 0).map((feature, idx) => (
                     <li key={idx} className="flex items-start gap-3">
                       <Check className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-700">{feature}</span>
+                      <span className="text-gray-700 text-sm">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -210,14 +402,26 @@ export function PackageSelector({ userType, onSelect }: PackageSelectorProps) {
 
                 {/* CTA Button */}
                 <button
-                  onClick={() => onSelect(pkg)}
-                  className={`w-full py-3 rounded-lg font-semibold transition-all ${
-                    isPopular
+                  onClick={() => handleSelectPackage(pkg)}
+                  disabled={isProcessing}
+                  className={`w-full py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+                    isProcessing
+                      ? 'bg-gray-400 text-white cursor-not-allowed'
+                      : isPopular
                       ? 'bg-blue-600 text-white hover:bg-blue-700'
                       : 'bg-gray-900 text-white hover:bg-gray-800'
                   }`}
                 >
-                  {pkg.name === 'Free' ? 'Get Started' : 'Choose Plan'}
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : pkg.name === 'Free' ? (
+                    'Get Started Free'
+                  ) : (
+                    'Choose Plan'
+                  )}
                 </button>
               </div>
             </div>
@@ -237,79 +441,10 @@ export function PackageSelector({ userType, onSelect }: PackageSelectorProps) {
         ) : (
           <>
             <p>All plans include access to our full library</p>
-            <p className="text-sm mt-1">Cancel anytime • No hidden fees</p>
+            <p className="text-sm mt-1">Cancel anytime • No hidden fees • Secure payments</p>
           </>
         )}
       </div>
-
-      {/* Comparison Table (Optional) */}
-      {userType === 'individual' && (
-        <div className="mt-16">
-          <h2 className="text-2xl font-bold text-center mb-8">Compare Plans</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b-2">
-                  <th className="text-left py-4 px-4">Feature</th>
-                  {packages.map((pkg) => (
-                    <th key={pkg.id} className="text-center py-4 px-4">
-                      {pkg.name}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b">
-                  <td className="py-4 px-4">Books Access</td>
-                  {packages.map((pkg) => (
-                    <td key={pkg.id} className="text-center py-4 px-4">
-                      {pkg.name === 'Free' ? 'Basic' : 'All'}
-                    </td>
-                  ))}
-                </tr>
-                <tr className="border-b">
-                  <td className="py-4 px-4">Monthly Queries</td>
-                  {packages.map((pkg) => (
-                    <td key={pkg.id} className="text-center py-4 px-4">
-                      {pkg.query_limit || 'Unlimited'}
-                    </td>
-                  ))}
-                </tr>
-                <tr className="border-b">
-                  <td className="py-4 px-4">Export (DOCX/PPTX)</td>
-                  {packages.map((pkg) => (
-                    <td key={pkg.id} className="text-center py-4 px-4">
-                      {pkg.name !== 'Free' ? (
-                        <Check className="w-5 h-5 text-green-500 mx-auto" />
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
-
-// Usage Example:
-//
-// import { PackageSelector } from '@/components/PackageSelector';
-//
-// function PricingPage() {
-//   const handleSelectPackage = (pkg) => {
-//     console.log('Selected package:', pkg);
-//     // Navigate to checkout or initiate subscription
-//   };
-//
-//   return (
-//     <PackageSelector 
-//       userType="individual"  // or "institution"
-//       onSelect={handleSelectPackage}
-//     />
-//   );
-// }
