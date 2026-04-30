@@ -4,42 +4,27 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+  
   try {
-    const { search } = req.query;
-    
-    // Build backend URL
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
-    const url = search 
-      ? `${backendUrl}/api/colleges?search=${search}`
-      : `${backendUrl}/api/colleges`;
-    
-    console.log('Fetching from:', url);
-    
-    const response = await fetch(url);
-    
+    const response = await fetch(`${backendUrl}/api/colleges`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
     if (!response.ok) {
       throw new Error(`Backend returned ${response.status}`);
     }
-    
+
     const data = await response.json();
-    console.log('Got colleges:', data.colleges?.length || 0);
-    
     return res.status(200).json(data);
-    
-  } catch (error) {
-    console.error('Colleges API error:', error);
-    
-    // TypeScript-safe error handling
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
+  } catch (error: any) {
+    console.error('Colleges API proxy error:', error);
     return res.status(500).json({ 
       error: 'Failed to fetch colleges',
-      message: errorMessage,
-      colleges: []
+      details: error.message 
     });
   }
 }
