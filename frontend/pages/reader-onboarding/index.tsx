@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/router";
+import { CollegeSelector } from "../../components/CollegeSelector";
 
 const professions = [
   "Student",
@@ -46,9 +47,8 @@ export default function ReaderOnboarding() {
   const router = useRouter();
 
   const [step, setStep] = useState(1);
+  const [selectedCollege, setSelectedCollege] = useState<any>(null);
   const [isInstitution, setIsInstitution] = useState<boolean | null>(null);
-  const [collegeCode, setCollegeCode] = useState("");
-  const [codeError, setCodeError] = useState("");
   const [loading, setLoading] = useState(false);
 
   // Profile form
@@ -68,12 +68,18 @@ export default function ReaderOnboarding() {
     );
   };
 
-  const handleCollegeCode = () => {
-    if (!collegeCode.trim()) { setCodeError("Please enter your college code"); return; }
-    // Move to profile step regardless
-    setIsInstitution(true);
-    setStep(2);
-    setCodeError("");
+  const handleCollegeSelect = (college: any) => {
+    setSelectedCollege(college);
+    if (college) {
+      setIsInstitution(true);
+    }
+  };
+
+  const handleContinueWithCollege = () => {
+    if (selectedCollege) {
+      setIsInstitution(true);
+      setStep(2);
+    }
   };
 
   const handleSave = async () => {
@@ -91,7 +97,11 @@ export default function ReaderOnboarding() {
           profession,
           reason,
           subjects,
-          ...(isInstitution && { collegeCode: collegeCode.toUpperCase() }),
+          ...(selectedCollege && {
+            collegeId: selectedCollege.id,
+            collegeName: selectedCollege.name,
+            hasSubscription: selectedCollege.has_subscription,
+          }),
         }
       };
 
@@ -121,7 +131,7 @@ export default function ReaderOnboarding() {
       display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: "'DM Sans', sans-serif", padding: "24px",
     }}>
-      <div style={{ width: "100%", maxWidth: "520px" }}>
+      <div style={{ width: "100%", maxWidth: selectedCollege ? "720px" : "520px", transition: "max-width 0.3s" }}>
 
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
@@ -153,35 +163,69 @@ export default function ReaderOnboarding() {
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "22px", color: "#2C2C2A", margin: "0 0 8px" }}>
                 Are you from a partner institution?
               </h2>
-              <p style={{ fontSize: "14px", color: "#888780", margin: "0 0 28px", lineHeight: 1.6 }}>
-                If your college or university has a Firstchapter subscription, enter your college code for unlimited access.
+              <p style={{ fontSize: "14px", color: "#888780", margin: "0 0 24px", lineHeight: 1.6 }}>
+                If your college or university has a Firstchapter subscription, select it below for unlimited access.
               </p>
 
-              {/* College code input */}
-              <div style={{ marginBottom: "16px" }}>
-                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>
-                  College code
-                </label>
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <input
-                    type="text"
-                    placeholder="e.g. IITM2026"
-                    value={collegeCode}
-                    onChange={e => { setCollegeCode(e.target.value.toUpperCase()); setCodeError(""); }}
-                    onKeyDown={e => e.key === "Enter" && handleCollegeCode()}
-                    style={{ ...inputStyle, letterSpacing: "1px", fontWeight: "500", flex: 1 }}
-                  />
-                  <button onClick={handleCollegeCode} style={{
-                    background: "#1D9E75", color: "white", border: "none",
-                    borderRadius: "12px", padding: "0 20px",
-                    fontSize: "13px", fontWeight: "500", cursor: "pointer",
-                    fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap" as const,
-                  }}>
-                    Apply
-                  </button>
-                </div>
-                {codeError && <p style={{ fontSize: "12px", color: "#E24B4A", margin: "6px 0 0" }}>{codeError}</p>}
+              {/* College Selector Component */}
+              <div style={{ marginBottom: "20px" }}>
+                <CollegeSelector
+                  onSelect={handleCollegeSelect}
+                  selectedCollege={selectedCollege}
+                />
               </div>
+
+              {/* Show info if college selected */}
+              {selectedCollege && (
+                <div style={{
+                  background: selectedCollege.has_subscription ? "#E1F5EE" : "#FAEEDA",
+                  border: `0.5px solid ${selectedCollege.has_subscription ? "#9FE1CB" : "#EFE1BC"}`,
+                  borderRadius: "12px",
+                  padding: "14px 18px",
+                  marginBottom: "20px",
+                }}>
+                  <p style={{
+                    fontSize: "13px",
+                    color: selectedCollege.has_subscription ? "#0F6E56" : "#8B6914",
+                    margin: "0 0 4px",
+                    fontWeight: "500",
+                  }}>
+                    {selectedCollege.has_subscription ? "✓ Free access activated!" : "⚠️ No subscription yet"}
+                  </p>
+                  <p style={{
+                    fontSize: "12px",
+                    color: selectedCollege.has_subscription ? "#0F6E56" : "#8B6914",
+                    margin: 0,
+                  }}>
+                    {selectedCollege.has_subscription
+                      ? `Your institution has an active subscription. You get unlimited access to all books!`
+                      : `${selectedCollege.name} doesn't have a subscription. You can still continue with individual access.`
+                    }
+                  </p>
+                </div>
+              )}
+
+              {/* Continue button if college selected */}
+              {selectedCollege && (
+                <button
+                  onClick={handleContinueWithCollege}
+                  style={{
+                    width: "100%",
+                    padding: "14px 20px",
+                    background: "#1D9E75",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "14px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    cursor: "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                    marginBottom: "16px",
+                  }}
+                >
+                  Continue with {selectedCollege.name} →
+                </button>
+              )}
 
               <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "20px 0" }}>
                 <div style={{ flex: 1, height: "0.5px", background: "#e5e4dc" }} />
@@ -190,7 +234,7 @@ export default function ReaderOnboarding() {
               </div>
 
               <button
-                onClick={() => { setIsInstitution(false); setStep(2); }}
+                onClick={() => { setIsInstitution(false); setSelectedCollege(null); setStep(2); }}
                 style={{
                   width: "100%", padding: "14px 20px",
                   border: "1.5px solid #e5e4dc", borderRadius: "14px",
@@ -218,8 +262,8 @@ export default function ReaderOnboarding() {
                 Welcome, {user?.firstName}! 👋
               </h2>
               <p style={{ fontSize: "14px", color: "#888780", margin: "0 0 24px", lineHeight: 1.6 }}>
-                {isInstitution
-                  ? `College code applied ✅ — tell us what you love reading`
+                {selectedCollege
+                  ? `${selectedCollege.name} ${selectedCollege.has_subscription ? "✅ — unlimited access!" : "— tell us what you love reading"}`
                   : "Help us personalise your reading experience"}
               </p>
 
@@ -324,7 +368,11 @@ export default function ReaderOnboarding() {
                       unsafeMetadata: {
                         role:      isInstitution ? "student" : "reader",
                         onboarded: true,
-                        ...(isInstitution && { collegeCode: collegeCode.toUpperCase() }),
+                        ...(selectedCollege && {
+                          collegeId: selectedCollege.id,
+                          collegeName: selectedCollege.name,
+                          hasSubscription: selectedCollege.has_subscription,
+                        }),
                       }
                     });
                     router.push("/");

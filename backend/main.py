@@ -2,7 +2,7 @@
 Firstchapter.ai Backend - Phase 2.5
 Complete token-based revenue system with institution management
 """
-
+from api import packages 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api import books, query, history, export, share, users, admin, saved, usage
@@ -40,8 +40,10 @@ app.include_router(share.router,   prefix="/api/share",   tags=["Share"])
 app.include_router(users.router,   prefix="/api/users",   tags=["Users"])
 app.include_router(admin.router,   prefix="/api/admin",   tags=["Admin"])
 app.include_router(saved.router,   prefix="/api/saved",   tags=["Saved"])
-app.include_router(usage.router,   prefix="/api/usage",   tags=["Usage"])
+app.include_router(usage.router, prefix="/api", tags=["Usage"])
 app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
+app.include_router(packages.router, prefix="/api", tags=["Packages"]) 
+
 
 # ══════════════════════════════════════════════════════════════════
 # NEW: Phase 2.5 Routes

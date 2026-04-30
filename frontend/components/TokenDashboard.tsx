@@ -1,14 +1,14 @@
 /**
- * Token Usage Dashboard
+ * Token Usage Dashboard with Fair Usage Warnings
  * 
  * Shows user's token consumption with visual indicators
- * Includes warnings when approaching limits
+ * Includes Fair Usage Policy warnings and throttling information
  */
 
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TrendingUp, AlertTriangle, Zap, ArrowUpRight } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Zap, ArrowUpRight, Info, Clock } from 'lucide-react';
 
 interface TokenUsage {
   total_input_tokens: number;
@@ -55,15 +55,16 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
     }
   };
 
-  const formatNumber = (num: number) => {
+  const formatNumber = (num: number | undefined | null) => {
+    if (num === undefined || num === null || isNaN(num)) return '0';
     if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
     if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
     if (num >= 1_000) return `${(num / 1_000).toFixed(1)}k`;
     return num.toString();
   };
 
-  const getUsagePercentage = (used: number, allocated: number) => {
-    if (!allocated) return 0;
+  const getUsagePercentage = (used: number | undefined, allocated: number | undefined) => {
+    if (!allocated || allocated === 0 || !used) return 0;
     return Math.min(100, (used / allocated) * 100);
   };
 
@@ -72,6 +73,46 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
     if (percentage >= 80) return { color: 'yellow', label: 'Warning', icon: AlertTriangle };
     if (percentage >= 60) return { color: 'blue', label: 'Good', icon: TrendingUp };
     return { color: 'green', label: 'Healthy', icon: Zap };
+  };
+
+  const getFairUsageMessage = (percentage: number) => {
+    if (percentage >= 100) {
+      return {
+        level: 'critical',
+        title: '🛑 Monthly Limit Reached',
+        message: 'Your token allocation for this month has been exhausted. Your usage will reset on your renewal date.',
+        action: 'Upgrade your plan to continue using the platform at full speed.',
+        throttle: 'Service paused until reset',
+      };
+    }
+    if (percentage >= 95) {
+      return {
+        level: 'critical',
+        title: '🚨 Critical: Only 5% Remaining',
+        message: 'You have very few tokens left. Queries are being throttled with a 5-second cooldown to prevent overuse.',
+        action: 'Upgrade now to continue without interruption.',
+        throttle: '5 second delay per query',
+      };
+    }
+    if (percentage >= 90) {
+      return {
+        level: 'warning',
+        title: '⚠️ Warning: 90% Used',
+        message: 'You\'re approaching your monthly limit. A slight 2-second delay is applied to manage usage.',
+        action: 'Consider upgrading to avoid service interruption.',
+        throttle: '2 second delay per query',
+      };
+    }
+    if (percentage >= 80) {
+      return {
+        level: 'notice',
+        title: '💡 Notice: 80% Used',
+        message: 'You\'ve used 80% of your monthly tokens. No restrictions yet, but you may want to plan ahead.',
+        action: 'Monitor your usage or upgrade for more capacity.',
+        throttle: 'No throttling (full speed)',
+      };
+    }
+    return null;
   };
 
   if (loading) {
@@ -96,7 +137,26 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
   const totalPercentage = getUsagePercentage(usage.tokens_used, usage.tokens_allocated);
 
   const outputStatus = getUsageStatus(outputPercentage);
+  const fairUsageWarning = getFairUsageMessage(outputPercentage);
   const StatusIcon = outputStatus.icon;
+
+  // Safe defaults for display
+  const safeUsage = {
+    query_count: usage.query_count || 0,
+    total_tokens: usage.total_tokens || 0,
+    total_input_tokens: usage.total_input_tokens || 0,
+    total_output_tokens: usage.total_output_tokens || 0,
+    input_tokens_used: usage.input_tokens_used || 0,
+    output_tokens_used: usage.output_tokens_used || 0,
+    tokens_used: usage.tokens_used || 0,
+    input_tokens_allocated: usage.input_tokens_allocated || 0,
+    output_tokens_allocated: usage.output_tokens_allocated || 0,
+    tokens_allocated: usage.tokens_allocated || 0,
+    tokens_remaining: usage.tokens_remaining || 0,
+    openai_cost_usd: usage.openai_cost_usd || 0,
+    openai_cost_inr: usage.openai_cost_inr || 0,
+    days: usage.days || days,
+  };
 
   return (
     <div className="space-y-6">
@@ -108,8 +168,8 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
             <span className="text-sm text-gray-600">Total Queries</span>
             <TrendingUp className="w-4 h-4 text-gray-400" />
           </div>
-          <div className="text-3xl font-bold text-gray-900">{usage.query_count}</div>
-          <p className="text-xs text-gray-500 mt-1">Last {days} days</p>
+          <div className="text-3xl font-bold text-gray-900">{safeUsage.query_count}</div>
+          <p className="text-xs text-gray-500 mt-1">Last {safeUsage.days} days</p>
         </div>
 
         {/* Total Tokens */}
@@ -119,10 +179,10 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
             <Zap className="w-4 h-4 text-gray-400" />
           </div>
           <div className="text-3xl font-bold text-gray-900">
-            {formatNumber(usage.total_tokens)}
+            {formatNumber(safeUsage.total_tokens)}
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            {formatNumber(usage.total_input_tokens)} in + {formatNumber(usage.total_output_tokens)} out
+            {formatNumber(safeUsage.total_input_tokens)} in + {formatNumber(safeUsage.total_output_tokens)} out
           </p>
         </div>
 
@@ -133,10 +193,10 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
             <ArrowUpRight className="w-4 h-4 text-gray-400" />
           </div>
           <div className="text-3xl font-bold text-gray-900">
-            ${usage.openai_cost_usd.toFixed(2)}
+            ${safeUsage.openai_cost_usd.toFixed(2)}
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            ₹{usage.openai_cost_inr} INR
+            ₹{safeUsage.openai_cost_inr.toFixed(2)} INR
           </p>
         </div>
 
@@ -175,24 +235,67 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
         </div>
       </div>
 
-      {/* Critical Warning */}
-      {outputPercentage >= 90 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+      {/* Fair Usage Warning */}
+      {fairUsageWarning && (
+        <div className={`rounded-lg border p-5 ${
+          fairUsageWarning.level === 'critical' ? 'bg-red-50 border-red-200' :
+          fairUsageWarning.level === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+          'bg-blue-50 border-blue-200'
+        }`}>
           <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-red-900">
-                {outputPercentage >= 95 ? 'Critical: Token Limit Almost Reached' : 'Warning: Approaching Token Limit'}
+            <AlertTriangle className={`w-6 h-6 flex-shrink-0 mt-0.5 ${
+              fairUsageWarning.level === 'critical' ? 'text-red-600' :
+              fairUsageWarning.level === 'warning' ? 'text-yellow-600' :
+              'text-blue-600'
+            }`} />
+            <div className="flex-1">
+              <h3 className={`font-semibold mb-1 ${
+                fairUsageWarning.level === 'critical' ? 'text-red-900' :
+                fairUsageWarning.level === 'warning' ? 'text-yellow-900' :
+                'text-blue-900'
+              }`}>
+                {fairUsageWarning.title}
               </h3>
-              <p className="text-sm text-red-700 mt-1">
-                You've used {outputPercentage.toFixed(1)}% of your output tokens. 
-                {outputPercentage >= 95 
-                  ? ' Queries will be throttled. Consider upgrading your plan.'
-                  : ' Consider upgrading to avoid service interruption.'}
+              <p className={`text-sm mb-2 ${
+                fairUsageWarning.level === 'critical' ? 'text-red-800' :
+                fairUsageWarning.level === 'warning' ? 'text-yellow-800' :
+                'text-blue-800'
+              }`}>
+                {fairUsageWarning.message}
               </p>
-              <button className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">
-                Upgrade Plan
-              </button>
+              
+              {/* Throttle Status */}
+              <div className={`flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded ${
+                fairUsageWarning.level === 'critical' ? 'bg-red-100 text-red-800' :
+                fairUsageWarning.level === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-blue-100 text-blue-800'
+              }`}>
+                <Clock className="w-4 h-4" />
+                <span className="font-medium">Current Throttle: {fairUsageWarning.throttle}</span>
+              </div>
+
+              <p className={`text-sm font-medium mb-3 ${
+                fairUsageWarning.level === 'critical' ? 'text-red-900' :
+                fairUsageWarning.level === 'warning' ? 'text-yellow-900' :
+                'text-blue-900'
+              }`}>
+                {fairUsageWarning.action}
+              </p>
+              
+              {outputPercentage >= 80 && (
+                <button 
+                  onClick={() => window.location.href = '/pricing'}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    fairUsageWarning.level === 'critical' 
+                      ? 'bg-red-600 hover:bg-red-700 text-white' 
+                      : fairUsageWarning.level === 'warning'
+                      ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {outputPercentage >= 95 ? 'Upgrade Now' : 'View Plans'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -207,7 +310,7 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-700">Input Tokens</span>
             <span className="text-sm text-gray-600">
-              {formatNumber(usage.input_tokens_used)} / {formatNumber(usage.input_tokens_allocated)}
+              {formatNumber(safeUsage.input_tokens_used)} / {formatNumber(safeUsage.input_tokens_allocated)}
             </span>
           </div>
           <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
@@ -217,7 +320,7 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
             />
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            {inputPercentage.toFixed(1)}% used • {formatNumber(usage.input_tokens_allocated - usage.input_tokens_used)} remaining
+            {inputPercentage.toFixed(1)}% used • {formatNumber(safeUsage.input_tokens_allocated - safeUsage.input_tokens_used)} remaining
           </p>
         </div>
 
@@ -226,7 +329,7 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-700">Output Tokens</span>
             <span className="text-sm text-gray-600">
-              {formatNumber(usage.output_tokens_used)} / {formatNumber(usage.output_tokens_allocated)}
+              {formatNumber(safeUsage.output_tokens_used)} / {formatNumber(safeUsage.output_tokens_allocated)}
             </span>
           </div>
           <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
@@ -240,17 +343,17 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
             />
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            {outputPercentage.toFixed(1)}% used • {formatNumber(usage.output_tokens_allocated - usage.output_tokens_used)} remaining
+            {outputPercentage.toFixed(1)}% used • {formatNumber(safeUsage.output_tokens_allocated - safeUsage.output_tokens_used)} remaining
           </p>
         </div>
 
         {/* Total */}
-        {usage.tokens_allocated > 0 && (
+        {safeUsage.tokens_allocated > 0 && (
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-gray-700">Total Allocation</span>
               <span className="text-sm text-gray-600">
-                {formatNumber(usage.tokens_used)} / {formatNumber(usage.tokens_allocated)}
+                {formatNumber(safeUsage.tokens_used)} / {formatNumber(safeUsage.tokens_allocated)}
               </span>
             </div>
             <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
@@ -260,36 +363,73 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
               />
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              {totalPercentage.toFixed(1)}% used • {formatNumber(usage.tokens_remaining || 0)} remaining
+              {totalPercentage.toFixed(1)}% used • {formatNumber(safeUsage.tokens_remaining)} remaining
             </p>
           </div>
         )}
       </div>
 
-      {/* Tips */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="font-semibold text-blue-900 mb-2">💡 Tips to Optimize Token Usage</h4>
-        <ul className="text-sm text-blue-800 space-y-1">
+      {/* Fair Usage Policy Info */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-semibold text-blue-900 mb-3">📘 Fair Usage Policy</h4>
+            <div className="space-y-2 text-sm text-blue-800">
+              <p>You have <strong>unlimited queries</strong> within your token allocation. Our fair usage system ensures great experience for everyone:</p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                <div className="bg-white/50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span className="font-medium text-green-900">0-79%</span>
+                  </div>
+                  <p className="text-xs text-gray-700">Full speed, no restrictions ✅</p>
+                </div>
+                
+                <div className="bg-white/50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                    <span className="font-medium text-blue-900">80-89%</span>
+                  </div>
+                  <p className="text-xs text-gray-700">Gentle warning, still full speed ⚠️</p>
+                </div>
+                
+                <div className="bg-white/50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                    <span className="font-medium text-yellow-900">90-94%</span>
+                  </div>
+                  <p className="text-xs text-gray-700">2-second delay per query ⏸️</p>
+                </div>
+                
+                <div className="bg-white/50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                    <span className="font-medium text-orange-900">95-99%</span>
+                  </div>
+                  <p className="text-xs text-gray-700">5-second throttling 🐌</p>
+                </div>
+              </div>
+              
+              <p className="mt-3 text-xs">
+                <strong>Tokens reset monthly</strong> on your renewal date. Upgrade anytime for more capacity.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Usage Tips */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <h4 className="font-semibold text-gray-900 mb-2">💡 Tips to Optimize Token Usage</h4>
+        <ul className="text-sm text-gray-700 space-y-1">
           <li>• Ask focused questions to reduce output tokens</li>
           <li>• Use specific book selections instead of searching all books</li>
           <li>• Output tokens count more toward your limit (67% of budget)</li>
+          <li>• Simple queries use fewer tokens than complex ones</li>
         </ul>
       </div>
     </div>
   );
 }
-
-// Usage Example:
-//
-// import { TokenDashboard } from '@/components/TokenDashboard';
-//
-// function DashboardPage() {
-//   const { user } = useAuth();
-//
-//   return (
-//     <div className="container mx-auto p-6">
-//       <h1 className="text-3xl font-bold mb-6">Your Usage</h1>
-//       <TokenDashboard userId={user.id} days={30} />
-//     </div>
-//   );
-// }
