@@ -83,37 +83,54 @@ export default function ReaderOnboarding() {
   };
 
   const handleSave = async () => {
-    if (subjects.length === 0) {
-      alert("Please select at least one subject area");
-      return;
-    }
+  if (subjects.length === 0) {
+    alert("Please select at least one subject area");
+    return;
+  }
 
-    setLoading(true);
-    try {
-      const updateData: any = {
-        unsafeMetadata: {
-          role:       isInstitution ? "student" : "reader",
-          onboarded:  true,
-          profession,
-          reason,
-          subjects,
-          ...(selectedCollege && {
-            collegeId: selectedCollege.id,
-            collegeName: selectedCollege.name,
-            hasSubscription: selectedCollege.has_subscription,
-          }),
-        }
-      };
+  setLoading(true);
+  try {
+    const updateData: any = {
+      unsafeMetadata: {
+        role:       isInstitution ? "student" : "reader",
+        onboarded:  true,
+        profession,
+        reason,
+        subjects,
+        ...(selectedCollege && {
+          collegeId: selectedCollege.id,
+          collegeName: selectedCollege.name,
+          hasSubscription: selectedCollege.has_subscription,
+        }),
+      }
+    };
 
-      await user?.update(updateData);
-      router.push("/");
-    } catch (e) {
-      console.error("Onboarding save error:", e);
-      alert("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
+await user?.update(updateData);
+
+// Smart redirect based on subscription status
+if (selectedCollege?.has_subscription) {
+  // College has subscription → Reader dashboard
+  router.push("/reader");
+} else {
+  // No subscription or individual → Pricing page
+  router.push("/pricing");
+}
+    
+    // Redirect based on subscription status
+    if (selectedCollege?.has_subscription) {
+      // College has subscription → Go to reader dashboard
+      router.push("/reader");
+    } else {
+      // No subscription → Choose a package
+      router.push("/pricing");
     }
-  };
+  } catch (e) {
+    console.error("Onboarding save error:", e);
+    alert("Something went wrong. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (!isLoaded) return null;
 
@@ -361,21 +378,38 @@ export default function ReaderOnboarding() {
 
               <button
                 onClick={async () => {
-                  // Allow skip but save minimum data
-                  setLoading(true);
-                  try {
-                    await user?.update({
-                      unsafeMetadata: {
-                        role:      isInstitution ? "student" : "reader",
-                        onboarded: true,
-                        ...(selectedCollege && {
-                          collegeId: selectedCollege.id,
-                          collegeName: selectedCollege.name,
-                          hasSubscription: selectedCollege.has_subscription,
-                        }),
-                      }
-                    });
-                    router.push("/");
+  setLoading(true);
+  try {
+    await user?.update({
+      unsafeMetadata: {
+        role:      isInstitution ? "student" : "reader",
+        onboarded: true,
+        ...(selectedCollege && {
+          collegeId: selectedCollege.id,
+          collegeName: selectedCollege.name,
+          hasSubscription: selectedCollege.has_subscription,
+        }),
+      }
+    });
+    
+    // Same redirect logic
+    if (selectedCollege?.has_subscription) {
+      router.push("/reader");
+    } else {
+      router.push("/pricing");
+    }
+  } catch {
+    router.push("/pricing"); // Fallback to pricing
+  } finally {
+    setLoading(false);
+  }
+}}
+                    // Same smart redirect
+if (selectedCollege?.has_subscription) {
+  router.push("/reader");
+} else {
+  router.push("/pricing");
+}
                   } catch { router.push("/"); }
                   finally { setLoading(false); }
                 }}
