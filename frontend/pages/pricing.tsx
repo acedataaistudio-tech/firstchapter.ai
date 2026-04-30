@@ -6,30 +6,6 @@ export default function PricingPage() {
   const router = useRouter();
   const { user } = useUser();
 
-  const handlePackageSelect = async (pkg: any) => {
-    console.log('Selected package:', pkg);
-    
-    // Save package selection
-    try {
-      await user?.update({
-        unsafeMetadata: {
-          ...user.unsafeMetadata,
-          selectedPackage: pkg.id,
-          packageName: pkg.name,
-        }
-      });
-    } catch (e) {
-      console.error('Error saving package:', e);
-    }
-    
-    // Redirect to checkout or payment
-    // For now, redirect to reader page
-    router.push('/reader');
-    
-    // TODO: Integrate with Razorpay
-    // router.push(`/checkout?package=${pkg.id}`);
-  };
-
   return (
     <div style={{
       minHeight: "100vh",
@@ -47,7 +23,10 @@ export default function PricingPage() {
           fontSize: "24px",
           color: "#2C2C2A",
           margin: 0,
-        }}>
+          cursor: "pointer",
+        }}
+        onClick={() => router.push('/')}
+        >
           First<span style={{ color: "#1D9E75" }}>chapter</span>
         </h1>
       </div>
@@ -55,7 +34,6 @@ export default function PricingPage() {
       {/* Package Selector */}
       <PackageSelector
         userType="individual"
-        onSelect={handlePackageSelect}
       />
 
       {/* Footer note */}
