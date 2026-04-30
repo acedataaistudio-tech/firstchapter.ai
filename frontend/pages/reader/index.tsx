@@ -189,38 +189,45 @@ export default function ReaderDashboard() {
                 </p>
               </div>
 
-              {user.unsafeMetadata?.collegeName as string && (
-                <div style={{ marginBottom: "16px" }}>
-                  <label style={{
-                    fontSize: "12px",
-                    color: "#888780",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}>
-                    Institution
-                  </label>
-                  <p style={{
-                    fontSize: "14px",
-                    color: "#2C2C2A",
-                    margin: 0,
-                  }}>
-                    {user.unsafeMetadata.collegeName}
-                    {user.unsafeMetadata.hasSubscription && (
-                      <span style={{
-                        marginLeft: "8px",
-                        fontSize: "11px",
-                        padding: "2px 8px",
-                        background: "#E1F5EE",
-                        color: "#0F6E56",
-                        borderRadius: "100px",
-                        fontWeight: "500",
-                      }}>
-                        ✓ Active
-                      </span>
-                    )}
-                  </p>
-                </div>
-              )}
+              {(() => {
+                const collegeName = user.unsafeMetadata?.collegeName;
+                const hasSubscription = user.unsafeMetadata?.hasSubscription;
+                
+                if (!collegeName) return null;
+                
+                return (
+                  <div style={{ marginBottom: "16px" }}>
+                    <label style={{
+                      fontSize: "12px",
+                      color: "#888780",
+                      display: "block",
+                      marginBottom: "6px",
+                    }}>
+                      Institution
+                    </label>
+                    <p style={{
+                      fontSize: "14px",
+                      color: "#2C2C2A",
+                      margin: 0,
+                    }}>
+                      {String(collegeName)}
+                      {hasSubscription === true && (
+                        <span style={{
+                          marginLeft: "8px",
+                          fontSize: "11px",
+                          padding: "2px 8px",
+                          background: "#E1F5EE",
+                          color: "#0F6E56",
+                          borderRadius: "100px",
+                          fontWeight: "500",
+                        }}>
+                          ✓ Active
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
