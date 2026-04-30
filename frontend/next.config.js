@@ -10,7 +10,7 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://*.clerk.accounts.dev https://clerk.firstchapter.ai https://challenges.cloudflare.com https://checkout.razorpay.com",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://*.clerk.accounts.dev https://clerk.firstchapter.ai https://challenges.cloudflare.com https://checkout.razorpay.com https://cdn.razorpay.com",
               "worker-src 'self' blob:",
               "connect-src 'self' blob: https://firstchapterai-production.up.railway.app https://api.firstchapter.ai https://*.clerk.accounts.dev wss://*.clerk.accounts.dev https://*.supabase.co",
               "img-src 'self' data: blob: https:",

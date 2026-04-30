@@ -28,7 +28,7 @@ async def create_subscription(
     
     try:
         # 1. Get package details
-        package_response = db.table("subscription_packages")\
+        package_response = db.table("packages")\
             .select("*")\
             .eq("id", request.package_id)\
             .single()\
@@ -112,7 +112,7 @@ async def get_current_subscription(
     
     try:
         result = db.table("subscriptions")\
-            .select("*, subscription_packages(*)")\
+            .select("*, packages(*)")\
             .eq("user_id", user_id)\
             .eq("is_active", True)\
             .single()\
