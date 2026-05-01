@@ -62,6 +62,12 @@ async def create_subscription(
             end_date = start_date + timedelta(days=365)
         
         # 4. Create subscription record
+        # Calculate input/output token split from total token_limit
+        # Ratio: 34% input, 66% output (e.g., 17K/33K for 50K total)
+        total_tokens = package.get("token_limit", 0) or 0
+        input_tokens = int(total_tokens * 0.34)
+        output_tokens = int(total_tokens * 0.66)
+        
         subscription_data = {
             "user_id": request.user_id,
             "package_id": request.package_id,
@@ -70,8 +76,8 @@ async def create_subscription(
             "end_date": end_date.isoformat(),
             "is_active": True,
             "payment_id": request.payment_id,
-            "input_tokens_allocated": package.get("input_tokens_allocated", 0),
-            "output_tokens_allocated": package.get("output_tokens_allocated", 0),
+            "input_tokens_allocated": input_tokens,
+            "output_tokens_allocated": output_tokens,
             "input_tokens_used": 0,
             "output_tokens_used": 0,
         }
@@ -88,9 +94,9 @@ async def create_subscription(
             "subscription": subscription,
             "message": "Subscription created successfully",
             "tokens_allocated": {
-                "input": package.get("input_tokens_allocated", 0),
-                "output": package.get("output_tokens_allocated", 0),
-                "total": package.get("input_tokens_allocated", 0) + package.get("output_tokens_allocated", 0)
+                "input": input_tokens,
+                "output": output_tokens,
+                "total": total_tokens
             }
         }
         
