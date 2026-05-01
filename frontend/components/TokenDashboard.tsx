@@ -8,7 +8,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TrendingUp, AlertTriangle, Zap, ArrowUpRight, Info, Clock } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Zap, Info, Clock } from 'lucide-react';
 
 interface TokenUsage {
   total_input_tokens: number;
@@ -22,8 +22,6 @@ interface TokenUsage {
   tokens_used: number;
   tokens_remaining: number;
   query_count: number;
-  openai_cost_usd: number;
-  openai_cost_inr: number;
   days: number;
 }
 
@@ -153,15 +151,13 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
     output_tokens_allocated: usage.output_tokens_allocated || 0,
     tokens_allocated: usage.tokens_allocated || 0,
     tokens_remaining: usage.tokens_remaining || 0,
-    openai_cost_usd: usage.openai_cost_usd || 0,
-    openai_cost_inr: usage.openai_cost_inr || 0,
     days: usage.days || days,
   };
 
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Total Queries */}
         <div className="bg-white rounded-lg border p-6">
           <div className="flex items-center justify-between mb-2">
@@ -183,20 +179,6 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
           </div>
           <p className="text-xs text-gray-500 mt-1">
             {formatNumber(safeUsage.total_input_tokens)} in + {formatNumber(safeUsage.total_output_tokens)} out
-          </p>
-        </div>
-
-        {/* OpenAI Cost */}
-        <div className="bg-white rounded-lg border p-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-600">Platform Cost</span>
-            <ArrowUpRight className="w-4 h-4 text-gray-400" />
-          </div>
-          <div className="text-3xl font-bold text-gray-900">
-            ${safeUsage.openai_cost_usd.toFixed(2)}
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            ₹{safeUsage.openai_cost_inr.toFixed(2)} INR
           </p>
         </div>
 
