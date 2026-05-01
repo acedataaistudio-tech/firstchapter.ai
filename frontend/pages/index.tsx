@@ -432,6 +432,8 @@ function Sidebar({ view, onSetView }: any) {
   const { signOut } = useClerk();
   const router = useRouter();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [tokenUsagePercent, setTokenUsagePercent] = useState(0);
+  const [loadingTokens, setLoadingTokens] = useState(true);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   
   // Close dropdown on outside click
@@ -444,6 +446,36 @@ function Sidebar({ view, onSetView }: any) {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+  
+  // Fetch token usage
+  useEffect(() => {
+    const fetchTokenUsage = async () => {
+      if (!user?.id) return;
+      
+      try {
+        setLoadingTokens(true);
+        const response = await fetch(`/api/usage/tokens?user_id=${user.id}&days=30`);
+        const data = await response.json();
+        
+        const totalAllocated = (data.tokens_allocated || 0);
+        const totalUsed = (data.total_input_tokens || 0) + (data.total_output_tokens || 0);
+        
+        if (totalAllocated > 0) {
+          const percentage = Math.round((totalUsed / totalAllocated) * 100);
+          setTokenUsagePercent(Math.min(percentage, 100));
+        } else {
+          setTokenUsagePercent(0);
+        }
+      } catch (error) {
+        console.error('Failed to fetch token usage:', error);
+        setTokenUsagePercent(0);
+      } finally {
+        setLoadingTokens(false);
+      }
+    };
+    
+    fetchTokenUsage();
+  }, [user?.id]);
   
   const navItems = [
     { id: "home",    label: "Home",    icon: Search   },
@@ -536,10 +568,22 @@ function Sidebar({ view, onSetView }: any) {
       )}
       <div className="p-4 border-t border-gray-100">
         <div className="bg-gray-50 rounded-lg p-3">
-          <p className="text-xs text-gray-500 mb-1">Queries remaining</p>
-          <p className="text-lg font-medium text-brand-400">{queriesLeft}</p>
+          <p className="text-xs text-gray-500 mb-1">Tokens used</p>
+          {loadingTokens ? (
+            <p className="text-lg font-medium text-gray-400">...</p>
+          ) : (
+            <p className="text-lg font-medium text-brand-400">{tokenUsagePercent}%</p>
+          )}
           <div className="mt-1.5 h-1 bg-gray-200 rounded-full">
-            <div className="h-1 bg-brand-400 rounded-full" style={{ width: `${Math.min((queriesLeft / 100) * 100, 100)}%` }} />
+            <div 
+              className={`h-1 rounded-full transition-all ${
+                tokenUsagePercent >= 95 ? 'bg-red-500' :
+                tokenUsagePercent >= 90 ? 'bg-orange-500' :
+                tokenUsagePercent >= 80 ? 'bg-yellow-500' :
+                'bg-brand-400'
+              }`}
+              style={{ width: `${tokenUsagePercent}%` }} 
+            />
           </div>
         </div>
       </div>
