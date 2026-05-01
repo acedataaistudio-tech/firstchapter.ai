@@ -4,7 +4,7 @@ import { discoverBooks, queryBooks, exportToDoc, exportToPpt, createShareLink, s
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/router";
 import toast from "react-hot-toast";
-import { Search, BookOpen, Send, Download, Share2, Save, Users, ChevronRight, X, FileText, Presentation, ChevronDown, Trash2, Bookmark } from "lucide-react";
+import { Search, BookOpen, Send, Download, Share2, Save, Users, ChevronRight, X, FileText, Presentation, ChevronDown, Trash2, Bookmark, User, Settings as SettingsIcon, TrendingUp, LogOut } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -430,6 +430,21 @@ function Sidebar({ view, onSetView }: any) {
   const { queriesLeft, resetChat } = useStore();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const router = useRouter();
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+  
   const navItems = [
     { id: "home",    label: "Home",    icon: Search   },
     { id: "history", label: "History", icon: BookOpen },
@@ -449,19 +464,74 @@ function Sidebar({ view, onSetView }: any) {
         ))}
       </nav>
       {user && (
-        <div className="p-4 border-t border-gray-100">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center text-xs font-medium text-brand-600">
+        <div className="p-4 border-t border-gray-100" ref={profileMenuRef}>
+          <button
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+            className="w-full flex items-center gap-2 hover:bg-gray-50 rounded-lg p-2 transition-colors"
+          >
+            <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-sm font-medium text-brand-600 flex-shrink-0">
               {user.firstName?.[0] || user.emailAddresses[0]?.emailAddress[0].toUpperCase()}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-800 truncate">{user.firstName || "User"}</p>
-              <p className="text-xs text-gray-400 truncate capitalize">
-                {(user.unsafeMetadata?.role as string) || (user.publicMetadata?.role as string) || "reader"}
-              </p>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-sm font-medium text-gray-800 truncate">{user.firstName || "User"}</p>
+              <p className="text-xs text-gray-400 truncate">{user.emailAddresses[0]?.emailAddress}</p>
             </div>
-          </div>
-          <button onClick={() => signOut()} className="w-full text-xs text-gray-400 hover:text-gray-600 text-left px-1">Sign out</button>
+            <ChevronDown 
+              size={16} 
+              className={`text-gray-400 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`}
+            />
+          </button>
+          
+          {/* Dropdown Menu */}
+          {showProfileMenu && (
+            <div className="mt-2 py-1 bg-white border border-gray-200 rounded-lg shadow-lg">
+              <button
+                onClick={() => {
+                  router.push('/reader');
+                  setShowProfileMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <User size={14} className="text-gray-400" />
+                <span>Dashboard</span>
+              </button>
+              
+              <button
+                onClick={() => {
+                  router.push('/reader?tab=usage');
+                  setShowProfileMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <TrendingUp size={14} className="text-gray-400" />
+                <span>Usage</span>
+              </button>
+              
+              <button
+                onClick={() => {
+                  router.push('/reader?tab=settings');
+                  setShowProfileMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <SettingsIcon size={14} className="text-gray-400" />
+                <span>Settings</span>
+              </button>
+              
+              <div className="h-px bg-gray-200 my-1" />
+              
+              <button
+                onClick={() => {
+                  signOut();
+                  setShowProfileMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut size={14} />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
       <div className="p-4 border-t border-gray-100">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/router";
 import { TokenDashboard } from "../../components/TokenDashboard";
@@ -8,6 +8,16 @@ export default function ReaderDashboard() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("usage");
+
+  // Handle tab from URL query parameter
+  useEffect(() => {
+    if (router.query.tab && typeof router.query.tab === 'string') {
+      const validTabs = ['usage', 'settings'];
+      if (validTabs.includes(router.query.tab)) {
+        setActiveTab(router.query.tab);
+      }
+    }
+  }, [router.query.tab]);
 
   if (!isLoaded) {
     return (
