@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 import logging
-
+from fastapi.middleware.cors import CORSMiddleware
 # Existing API imports
 from api import books, query, history, export, share, users, admin, saved, usage
 from api import subscriptions, packages
@@ -185,3 +185,14 @@ def debug():
         },
         "phase": "3.0 - Institution Management"
     }
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://www.firstchapter.ai",
+        "https://firstchapter.ai",
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
