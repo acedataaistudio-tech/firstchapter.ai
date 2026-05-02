@@ -1,10 +1,11 @@
-// components/InstitutionDashboard.tsx
-
 import { useState, useEffect } from 'react';
 import { 
-  Users, TrendingUp, Package, Settings, Activity, 
+  Users, TrendingUp, Package, Settings, Activity as ActivityIcon, 
   AlertCircle, Clock, CheckCircle, XCircle, Bell 
 } from 'lucide-react';
+import { StudentManagement } from './StudentManagement';
+import { FUPSettings } from './FUPSettings';
+import { ActivityLog } from './ActivityLog';
 
 interface DashboardProps {
   institutionId: string;
@@ -32,7 +33,11 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
   };
   
   if (loading || !data) {
-    return <div>Loading dashboard...</div>;
+    return (
+      <div style={{ padding: '40px', textAlign: 'center', color: '#888780' }}>
+        Loading dashboard...
+      </div>
+    );
   }
   
   const { institution, subscription, settings, students, activity, usage_trends, alerts } = data;
@@ -42,7 +47,7 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
       {/* Header Stats */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
         gap: '16px',
         marginBottom: '24px',
       }}>
@@ -110,7 +115,7 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
             <Package size={18} style={{ color: '#9B59B6' }} />
           </div>
           <div style={{ fontSize: '18px', fontWeight: '600', color: '#2C2C2A' }}>
-            {subscription.package_name}
+            {subscription.package_name || 'N/A'}
           </div>
           <div style={{ fontSize: '12px', color: '#888780', marginTop: '4px' }}>
             {subscription.trial_mode ? `Trial until ${new Date(subscription.trial_until).toLocaleDateString()}` : 'Active'}
@@ -138,7 +143,7 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
       </div>
       
       {/* Alerts */}
-      {alerts.length > 0 && (
+      {alerts && alerts.length > 0 && (
         <div style={{
           background: '#FFF4E5',
           border: '1px solid #FFE0B2',
@@ -173,6 +178,7 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
           display: 'flex',
           borderBottom: '1px solid #e5e4dc',
           padding: '0 20px',
+          overflowX: 'auto',
         }}>
           {[
             { id: 'overview', label: 'Overview' },
@@ -192,6 +198,7 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
                 fontWeight: activeTab === tab.id ? '600' : '400',
                 fontSize: '14px',
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
               }}
             >
               {tab.label}
@@ -204,11 +211,19 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
           {activeTab === 'overview' && (
             <div>
               <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>
-                Usage Trends (Last 30 Days)
+                Usage Overview
               </h3>
-              {/* Usage chart would go here */}
-              <div style={{ fontSize: '14px', color: '#888780' }}>
-                Daily token consumption chart
+              <div style={{
+                padding: '20px',
+                background: '#f9f9f7',
+                borderRadius: '8px',
+                fontSize: '14px',
+                color: '#888780',
+              }}>
+                <p>Daily usage trends and analytics will be displayed here.</p>
+                <p style={{ marginTop: '8px' }}>
+                  Current usage: {subscription.usage_percent}% of monthly allocation
+                </p>
               </div>
             </div>
           )}
@@ -233,4 +248,3 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
     </div>
   );
 }
-```
