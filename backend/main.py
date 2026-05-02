@@ -15,6 +15,7 @@ from api import books, query, history, export, share, users, admin, saved, usage
 from api import subscriptions, packages
 from api import mau_management, admin_cost_tracking, publisher_payout_management
 from api import colleges
+from api.institution import onboarding
 from websocket_handler.websocket import router as ws_router
 
 
@@ -93,6 +94,7 @@ app.include_router(colleges.router,    prefix="/api",         tags=["Colleges"])
 app.include_router(packages.router,    prefix="/api",         tags=["Packages"]) 
 app.include_router(subscriptions.router, prefix="/api",       tags=["Subscriptions"])
 app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
+app.include_router(onboarding.router, prefix="/api", tags=["Institution Onboarding"])
 
 # ══════════════════════════════════════════════════════════════════
 # PHASE 2.5/3 ROUTES
