@@ -16,7 +16,7 @@ export default function PlatformAdminInstitutions() {
 
   const loadApplications = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/institutions?status=${filter}`);
+      const res = await fetch(`${API_BASE_URL}/api/admin/institutions/list?status=${filter}`);
       const data = await res.json();
       setApplications(data.institutions || []);
     } catch (err) {
@@ -30,7 +30,7 @@ export default function PlatformAdminInstitutions() {
     if (!confirm('Approve this institution? This will create their subscription.')) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/institution/approve`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/institutions/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -56,7 +56,7 @@ export default function PlatformAdminInstitutions() {
     if (!reason) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/institution/approve`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/institutions/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
