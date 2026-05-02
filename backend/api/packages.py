@@ -1,108 +1,63 @@
 """
-Packages API Endpoint
-Returns subscription packages for frontend
+Packages API - Fetch institutional packages
 """
 
 from fastapi import APIRouter, HTTPException, Query
-from database.crud import get_db
-from typing import Optional, List
+from typing import Optional
 
 router = APIRouter()
 
-
 @router.get("/packages")
-def get_packages(type: Optional[str] = Query(None, description="Package type: individual or institution")):
+async def get_packages(type: Optional[str] = Query(None)):
     """
-    Get all packages or filter by type
+    Get packages, optionally filtered by type.
     
     Query params:
-    - type: 'individual' or 'institution' (optional)
+    - type: 'individual' or 'institution'
     
-    Returns list of packages with pricing and features
+    Example: /api/packages?type=institution
     """
+    from database.crud import get_db
+    db = get_db()
+    
     try:
-        db = get_db()
-        
-        # Start query
         query = db.table("packages").select("*").eq("is_active", True)
         
         # Filter by type if provided
         if type:
             query = query.eq("type", type)
         
-        # Execute and order by price
-        response = query.order("price_yearly").execute()
-        
-        packages = []
-        for pkg in (response.data or []):
-            # Calculate monthly price if yearly exists
-            monthly_price = None
-            if pkg.get("price_yearly"):
-                # Monthly = (Yearly / 12) * 1.2 (20% discount for yearly)
-                monthly_price = int((pkg["price_yearly"] / 12) * 1.2)
-            
-            package_data = {
-                "id": pkg.get("id"),
-                "name": pkg.get("name"),
-                "type": pkg.get("type"),
-                "price_monthly": pkg.get("price_monthly") or monthly_price,
-                "price_yearly": pkg.get("price_yearly"),
-                "query_limit": pkg.get("query_limit"),
-                "token_limit": pkg.get("token_limit"),
-                "features": pkg.get("features", []),
-                "is_active": pkg.get("is_active", True),
-                "popular": pkg.get("name") in ["Premium", "Institution Growth"],  # Mark popular ones
-            }
-            packages.append(package_data)
+        result = query.order("price_yearly").execute()
         
         return {
-            "packages": packages,
-            "total": len(packages)
+            "packages": result.data or [],
+            "count": len(result.data or [])
         }
-        
+    
     except Exception as e:
         print(f"Error fetching packages: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/packages/{package_id}")
-def get_package_by_id(package_id: str):
-    """Get single package by ID"""
+async def get_package_by_id(package_id: str):
+    """Get single package details by ID"""
+    from database.crud import get_db
+    db = get_db()
+    
     try:
-        db = get_db()
-        
-        package = db.table("packages")\
+        result = db.table("packages")\
             .select("*")\
             .eq("id", package_id)\
             .single()\
             .execute()
         
-        if not package.data:
+        if not result.data:
             raise HTTPException(status_code=404, detail="Package not found")
         
-        pkg = package.data
-        
-        # Calculate monthly price if needed
-        monthly_price = pkg.get("price_monthly")
-        if not monthly_price and pkg.get("price_yearly"):
-            monthly_price = int((pkg["price_yearly"] / 12) * 1.2)
-        
-        return {
-            "package": {
-                "id": pkg.get("id"),
-                "name": pkg.get("name"),
-                "type": pkg.get("type"),
-                "price_monthly": monthly_price,
-                "price_yearly": pkg.get("price_yearly"),
-                "query_limit": pkg.get("query_limit"),
-                "token_limit": pkg.get("token_limit"),
-                "features": pkg.get("features", []),
-                "is_active": pkg.get("is_active", True),
-            }
-        }
-        
+        return result.data
+    
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error fetching package: {e}")
         raise HTTPException(status_code=500, detail=str(e))

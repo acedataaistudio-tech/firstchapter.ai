@@ -1,5 +1,20 @@
 import { SignUp } from '@clerk/nextjs';
 import { useRouter } from 'next/router';
+import { useUser } from '@clerk/nextjs';
+import { useEffect } from 'react';
+import { syncUserToDatabase } from '../../utils/userSync';
+
+export default function InstitutionSignUp() {
+  const { user, isLoaded } = useUser();
+
+  useEffect(() => {
+    if (isLoaded && user) {
+      syncUserToDatabase(user, 'institution');
+    }
+  }, [user, isLoaded]);
+
+  return <SignUp ... />;
+}
 
 export default function InstitutionSignUp() {
   const router = useRouter();
