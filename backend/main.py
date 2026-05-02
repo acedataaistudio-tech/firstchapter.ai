@@ -3,115 +3,62 @@ Firstchapter.ai Backend - Phase 3
 Complete token-based revenue system with institution management
 Institution Fair Usage Policy with monitoring
 """
-from api import packages, user_sync
-from api.admin import institutions as admin_institutions
-from api import colleges
+"""
+Firstchapter.ai Backend - Phase 3
+Complete token-based revenue system with institution management
+Institution Fair Usage Policy with monitoring
+"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 import logging
-from fastapi.middleware.cors import CORSMiddleware
-# Existing API imports
-from api import books, query, history, export, share, users, admin, saved, usage
-from api import subscriptions, packages
-from api import mau_management, admin_cost_tracking, publisher_payout_management
-from api import colleges
-from api.institution import onboarding
-from websocket_handler.websocket import router as ws_router
 
+# Phase 1-2 API imports
+from api import books, query, history, export, share, users, admin, saved, usage
+from api import subscriptions, mau_management, admin_cost_tracking, publisher_payout_management
+
+# Phase 3 API imports
+from api import colleges, packages, user_sync
+from api.institution import onboarding
+from api.admin import institutions as admin_institutions
+
+from websocket_handler.websocket import router as ws_router
 
 logging.basicConfig(level=logging.INFO)
 
-# ══════════════════════════════════════════════════════════════════
-# LIFESPAN MANAGEMENT - Institution Monitoring Background Task
-# ══════════════════════════════════════════════════════════════════
+# ... (keep the lifespan function as is)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Manage application lifespan.
-    Starts institution monitoring on startup, stops on shutdown.
-    """
-    # Startup
-    logging.info("🚀 Starting Firstchapter.ai Backend...")
-    
-    # Start institution monitoring background task
-    monitoring_task = None
-    try:
-        from api.institution.institution_monitoring import run_monitoring_forever
-        from database.crud import get_db
-        
-        logging.info("🔍 Starting institution quota monitoring...")
-        monitoring_task = asyncio.create_task(run_monitoring_forever(get_db()))
-        logging.info("✅ Institution monitoring started successfully")
-    except Exception as e:
-        logging.warning(f"⚠️ Could not start institution monitoring: {e}")
-        logging.warning("   (This is OK if institution features not yet deployed)")
-    
-    yield  # Application is running
-    
-    # Shutdown
-    logging.info("🛑 Shutting down Firstchapter.ai Backend...")
-    if monitoring_task:
-        monitoring_task.cancel()
-        try:
-            await monitoring_task
-        except asyncio.CancelledError:
-            logging.info("✅ Institution monitoring stopped")
+# ... (keep the app creation as is)
 
 # ══════════════════════════════════════════════════════════════════
-# CREATE APP WITH LIFESPAN
+# ROUTE REGISTRATIONS - NO DUPLICATES
 # ══════════════════════════════════════════════════════════════════
 
-app = FastAPI(
-    title="Firstchapter.ai API",
-    description="AI-powered book platform with institution token management",
-    version="3.0.0",
-    lifespan=lifespan  # Enable background monitoring
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ══════════════════════════════════════════════════════════════════
-# EXISTING ROUTES
-# ══════════════════════════════════════════════════════════════════
-
-app.include_router(books.router,       prefix="/api/books",   tags=["Books"])
-app.include_router(query.router,       prefix="/api",         tags=["Query"])
-app.include_router(history.router,     prefix="/api/history", tags=["History"])
-app.include_router(export.router,      prefix="/api/export",  tags=["Export"])
-app.include_router(share.router,       prefix="/api/share",   tags=["Share"])
-app.include_router(users.router,       prefix="/api/users",   tags=["Users"])
-app.include_router(admin.router,       prefix="/api/admin",   tags=["Admin"])
-app.include_router(saved.router,       prefix="/api/saved",   tags=["Saved"])
-app.include_router(usage.router,       prefix="/api",         tags=["Usage"])
-app.include_router(colleges.router,    prefix="/api",         tags=["Colleges"])
-app.include_router(packages.router,    prefix="/api",         tags=["Packages"]) 
-app.include_router(subscriptions.router, prefix="/api",       tags=["Subscriptions"])
-app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
-app.include_router(onboarding.router, prefix="/api", tags=["Institution Onboarding"])
-app.include_router(packages.router, prefix="/api", tags=["Packages"])
-app.include_router(user_sync.router, prefix="/api", tags=["User Sync"])
-app.include_router(admin_institutions.router, prefix="/api/admin", tags=["Admin"])
-
-# ══════════════════════════════════════════════════════════════════
-# PHASE 2.5/3 ROUTES
-# ══════════════════════════════════════════════════════════════════
-
-app.include_router(mau_management.router,           prefix="/api", tags=["MAU Management"])
-app.include_router(admin_cost_tracking.router,      prefix="/api", tags=["Admin Cost Tracking"])
+# Phase 1-2 Routes
+app.include_router(books.router, prefix="/api/books", tags=["Books"])
+app.include_router(query.router, prefix="/api", tags=["Query"])
+app.include_router(history.router, prefix="/api/history", tags=["History"])
+app.include_router(export.router, prefix="/api/export", tags=["Export"])
+app.include_router(share.router, prefix="/api/share", tags=["Share"])
+app.include_router(users.router, prefix="/api/users", tags=["Users"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+app.include_router(saved.router, prefix="/api/saved", tags=["Saved"])
+app.include_router(usage.router, prefix="/api", tags=["Usage"])
+app.include_router(subscriptions.router, prefix="/api", tags=["Subscriptions"])
+app.include_router(mau_management.router, prefix="/api", tags=["MAU Management"])
+app.include_router(admin_cost_tracking.router, prefix="/api", tags=["Admin Cost Tracking"])
 app.include_router(publisher_payout_management.router, prefix="/api", tags=["Publisher Payout Management"])
+
+# Phase 3 Routes - Institution Management
+app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
+app.include_router(packages.router, prefix="/api", tags=["Packages"])
+app.include_router(onboarding.router, prefix="/api", tags=["Institution Onboarding"])
+app.include_router(user_sync.router, prefix="/api", tags=["User Sync"])
+app.include_router(admin_institutions.router, prefix="/api/admin", tags=["Admin Institutions"])
 
 # WebSocket
 app.include_router(ws_router)
-
 # ══════════════════════════════════════════════════════════════════
 # ROOT ENDPOINTS
 # ══════════════════════════════════════════════════════════════════
