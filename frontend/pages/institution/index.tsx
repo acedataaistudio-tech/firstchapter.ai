@@ -16,20 +16,32 @@ export default function InstitutionPage() {
 
   useEffect(() => {
     if (!isLoaded) return;
+    
     if (!user) {
-      router.push('/sign-in');
+      router.push('/institution/sign-in');
       return;
     }
+    
     checkApplicationStatus();
   }, [user, isLoaded, router]);
 
   const checkApplicationStatus = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/institution/status/${user?.id}`);
+      
+      // If 404, user has no application - show onboarding
+      if (res.status === 404) {
+        setApplicationStatus({ has_application: false });
+        setLoading(false);
+        return;
+      }
+      
       const data = await res.json();
       setApplicationStatus(data);
     } catch (error) {
       console.error('Failed to check application status:', error);
+      // On error, assume no application and show onboarding
+      setApplicationStatus({ has_application: false });
     } finally {
       setLoading(false);
     }
@@ -44,15 +56,17 @@ export default function InstitutionPage() {
         alignItems: "center",
         justifyContent: "center",
       }}>
-        <div>Loading...</div>
+        <div style={{ fontSize: '16px', color: '#888780' }}>Loading...</div>
       </div>
     );
   }
 
+  // No application - show onboarding form
   if (!applicationStatus || !applicationStatus.has_application) {
     return <InstitutionOnboarding />;
   }
 
+  // Application pending
   if (applicationStatus.status === 'pending') {
     return (
       <div style={{
@@ -83,6 +97,7 @@ export default function InstitutionPage() {
     );
   }
 
+  // Application rejected
   if (applicationStatus.status === 'rejected') {
     return (
       <div style={{
@@ -115,6 +130,7 @@ export default function InstitutionPage() {
     );
   }
 
+  // Application approved - show dashboard
   if (applicationStatus.status === 'approved' && applicationStatus.is_active) {
     return (
       <div style={{ minHeight: "100vh", background: "#f9f9f7" }}>
@@ -141,10 +157,19 @@ export default function InstitutionPage() {
     );
   }
 
+  // Unknown state
   return (
-    <div style={{ minHeight: "100vh", background: "#f9f9f7", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <AlertCircle size={48} style={{ color: "#888780" }} />
-      <p>Unable to load institution data.</p>
+    <div style={{
+      minHeight: "100vh",
+      background: "#f9f9f7",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    }}>
+      <div style={{ textAlign: 'center' }}>
+        <AlertCircle size={48} style={{ color: "#888780", marginBottom: '16px' }} />
+        <p style={{ fontSize: '16px', color: '#888780' }}>Unable to load institution data.</p>
+      </div>
     </div>
   );
 }
