@@ -83,14 +83,14 @@ async def get_colleges_list():
     try:
         # Get all colleges, grouped by type
         colleges = db.table("colleges")\
-            .select("id, name, type, city, state")\
-            .order("type, name")\
+            .select("id, name, institution_type, location")\
+            .order("institution_type, name")\
             .execute()
         
         # Group by type for easier frontend display
         grouped = {}
         for college in (colleges.data or []):
-            college_type = college.get("type", "Other")
+            college_type = college.get("institution_type", "Other")
             if college_type not in grouped:
                 grouped[college_type] = []
             grouped[college_type].append({
@@ -142,7 +142,7 @@ async def submit_institution_application(request: InstitutionOnboardingRequest):
         if request.college_id:
             # Get college name from master list
             college = db.table("colleges")\
-                .select("name, type")\
+                .select("name, institution_type")\
                 .eq("id", request.college_id)\
                 .single()\
                 .execute()
@@ -151,7 +151,7 @@ async def submit_institution_application(request: InstitutionOnboardingRequest):
                 raise HTTPException(status_code=404, detail="Selected college not found")
             
             institution_name = college.data["name"]
-            institution_type = college.data["type"]
+            institution_type = college.data["institution_type"]
         else:
             # Use manually entered name
             institution_name = request.institution_name
