@@ -3,6 +3,7 @@ Firstchapter.ai Backend - Phase 3
 Complete token-based revenue system with institution management
 Institution Fair Usage Policy with monitoring
 """
+from api import colleges
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -15,6 +16,7 @@ from api import subscriptions, packages
 from api import mau_management, admin_cost_tracking, publisher_payout_management
 from api import colleges
 from websocket_handler.websocket import router as ws_router
+app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
 
 logging.basicConfig(level=logging.INFO)
 

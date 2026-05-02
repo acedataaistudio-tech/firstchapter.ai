@@ -15,6 +15,8 @@ export function InstitutionOnboarding() {
   const [formData, setFormData] = useState({
     // Step 1: College selection
     selectedCollegeId: '',
+    selectedCollegeName: '',
+    selectedCollegeLocation: '',
     isOther: false,
     institutionName: '',
     institutionType: '',
@@ -45,6 +47,7 @@ export function InstitutionOnboarding() {
   
   const [colleges, setColleges] = useState<any>({});
   const [packages, setPackages] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Load colleges and packages
   useEffect(() => {
@@ -71,6 +74,54 @@ export function InstitutionOnboarding() {
       console.error('Failed to load packages:', err);
     }
   };
+
+  // Filter colleges by search term
+  const filteredColleges: any = {};
+  if (searchTerm) {
+    Object.entries(colleges).forEach(([type, items]: [string, any]) => {
+      const filtered = items.filter((college: any) => 
+        college.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        college.location?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      if (filtered.length > 0) {
+        filteredColleges[type] = filtered;
+      }
+    });
+  } else {
+    Object.assign(filteredColleges, colleges);
+  }
+  
+  const handleCollegeSelect = (e: any) => {
+    const value = e.target.value;
+    
+    if (value === 'other') {
+      setFormData({
+        ...formData,
+        selectedCollegeId: '',
+        selectedCollegeName: '',
+        selectedCollegeLocation: '',
+        isOther: true,
+      });
+      return;
+    }
+    
+    // Find the selected college
+    let selectedCollege: any = null;
+    Object.values(colleges).forEach((items: any) => {
+      const found = items.find((c: any) => c.id === value);
+      if (found) selectedCollege = found;
+    });
+    
+    if (selectedCollege) {
+      setFormData({
+        ...formData,
+        selectedCollegeId: value,
+        selectedCollegeName: selectedCollege.name,
+        selectedCollegeLocation: selectedCollege.location,
+        isOther: false,
+      });
+    }
+  };
   
   const handleSubmit = async () => {
     setLoading(true);
@@ -86,7 +137,7 @@ export function InstitutionOnboarding() {
           admin_email: formData.contactEmail,
           college_id: formData.isOther ? null : formData.selectedCollegeId,
           is_other: formData.isOther,
-          institution_name: formData.institutionName,
+          institution_name: formData.isOther ? formData.institutionName : formData.selectedCollegeName,
           institution_type: formData.institutionType,
           ...formData,
         }),
@@ -193,24 +244,41 @@ export function InstitutionOnboarding() {
                 Select Your Institution
               </h2>
               <p style={{ fontSize: '14px', color: '#888780', marginBottom: '24px' }}>
-                Choose from our list or enter manually if not found
+                Choose from our list of 422 colleges or enter manually
               </p>
+              
+              {/* Search Box */}
+              <div style={{ position: 'relative', marginBottom: '16px' }}>
+                <Search size={18} style={{
+                  position: 'absolute',
+                  left: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#888780',
+                }} />
+                <input
+                  type="text"
+                  placeholder="Search colleges by name or location..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px 10px 40px',
+                    border: '1px solid #e5e4dc',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                  }}
+                />
+              </div>
               
               {/* College Dropdown */}
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
-                  Select College/University
+                  Select College/University *
                 </label>
                 <select
-                  value={formData.selectedCollegeId}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setFormData({
-                      ...formData,
-                      selectedCollegeId: value,
-                      isOther: value === 'other',
-                    });
-                  }}
+                  value={formData.selectedCollegeId || (formData.isOther ? 'other' : '')}
+                  onChange={handleCollegeSelect}
                   style={{
                     width: '100%',
                     padding: '12px',
@@ -220,7 +288,7 @@ export function InstitutionOnboarding() {
                   }}
                 >
                   <option value="">-- Select Institution --</option>
-                  {Object.entries(colleges).map(([type, items]: [string, any]) => (
+                  {Object.entries(filteredColleges).map(([type, items]: [string, any]) => (
                     <optgroup key={type} label={type}>
                       {items.map((college: any) => (
                         <option key={college.id} value={college.id}>
@@ -244,6 +312,7 @@ export function InstitutionOnboarding() {
                       type="text"
                       value={formData.institutionName}
                       onChange={(e) => setFormData({ ...formData, institutionName: e.target.value })}
+                      placeholder="Enter institution name"
                       style={{
                         width: '100%',
                         padding: '12px',
@@ -270,6 +339,8 @@ export function InstitutionOnboarding() {
                       }}
                     >
                       <option value="">-- Select Type --</option>
+                      <option value="IIT">IIT</option>
+                      <option value="NIT">NIT</option>
                       <option value="University">University</option>
                       <option value="College">College</option>
                       <option value="School">School</option>
@@ -279,123 +350,6 @@ export function InstitutionOnboarding() {
                   </div>
                 </>
               )}
-            </div>
-          )}
-          
-          {/* STEP 2: Contact Details */}
-          {step === 2 && (
-            <div>
-              <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '24px' }}>
-                Contact Information
-              </h2>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
-                    Contact Person Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.contactPersonName}
-                    onChange={(e) => setFormData({ ...formData, contactPersonName: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid #e5e4dc',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                    }}
-                  />
-                </div>
-                
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
-                    Designation *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.contactPersonDesignation}
-                    onChange={(e) => setFormData({ ...formData, contactPersonDesignation: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid #e5e4dc',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                    }}
-                  />
-                </div>
-              </div>
-              
-              {/* Address, Email, Phone fields... (truncated for brevity) */}
-              {/* Add all address fields similar to above */}
-            </div>
-          )}
-          
-          {/* STEP 3: Head of Institution */}
-          {step === 3 && (
-            <div>
-              <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '24px' }}>
-                Head of Institution Details
-              </h2>
-              {/* Similar input fields for head details */}
-            </div>
-          )}
-          
-          {/* STEP 4: Package Selection */}
-          {step === 4 && (
-            <div>
-              <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '24px' }}>
-                Choose Your Package
-              </h2>
-              
-              <div style={{ display: 'grid', gap: '16px', marginBottom: '24px' }}>
-                {packages.map((pkg) => (
-                  <div
-                    key={pkg.id}
-                    onClick={() => setFormData({
-                      ...formData,
-                      packageId: pkg.id,
-                      packageName: pkg.name,
-                    })}
-                    style={{
-                      padding: '20px',
-                      border: formData.packageId === pkg.id ? '2px solid #1D9E75' : '1px solid #e5e4dc',
-                      borderRadius: '12px',
-                      cursor: 'pointer',
-                      background: formData.packageId === pkg.id ? '#E1F5EE' : 'white',
-                    }}
-                  >
-                    <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
-                      {pkg.name}
-                    </h3>
-                    <p style={{ fontSize: '14px', color: '#888780', marginBottom: '12px' }}>
-                      {pkg.description}
-                    </p>
-                    <div style={{ fontSize: '24px', fontWeight: '700', color: '#1D9E75' }}>
-                      ₹{pkg.price_inr}/month
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
-                  Estimated Number of Students
-                </label>
-                <input
-                  type="number"
-                  value={formData.estimatedStudents}
-                  onChange={(e) => setFormData({ ...formData, estimatedStudents: parseInt(e.target.value) })}
-                  style={{
-                    width: '200px',
-                    padding: '12px',
-                    border: '1px solid #e5e4dc',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                  }}
-                />
-              </div>
             </div>
           )}
           
@@ -426,7 +380,7 @@ export function InstitutionOnboarding() {
               <button
                 onClick={() => setStep(step + 1)}
                 disabled={
-                  (step === 1 && !formData.selectedCollegeId) ||
+                  (step === 1 && !formData.selectedCollegeId && !formData.isOther) ||
                   (step === 1 && formData.isOther && (!formData.institutionName || !formData.institutionType))
                 }
                 style={{
@@ -439,7 +393,6 @@ export function InstitutionOnboarding() {
                   fontSize: '14px',
                   fontWeight: '500',
                   marginLeft: 'auto',
-                  opacity: loading ? 0.6 : 1,
                 }}
               >
                 Continue
@@ -447,7 +400,7 @@ export function InstitutionOnboarding() {
             ) : (
               <button
                 onClick={handleSubmit}
-                disabled={loading || !formData.packageId}
+                disabled={loading}
                 style={{
                   padding: '12px 32px',
                   border: 'none',
