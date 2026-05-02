@@ -16,7 +16,7 @@ from api import subscriptions, packages
 from api import mau_management, admin_cost_tracking, publisher_payout_management
 from api import colleges
 from websocket_handler.websocket import router as ws_router
-app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -92,6 +92,7 @@ app.include_router(usage.router,       prefix="/api",         tags=["Usage"])
 app.include_router(colleges.router,    prefix="/api",         tags=["Colleges"])
 app.include_router(packages.router,    prefix="/api",         tags=["Packages"]) 
 app.include_router(subscriptions.router, prefix="/api",       tags=["Subscriptions"])
+app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
 
 # ══════════════════════════════════════════════════════════════════
 # PHASE 2.5/3 ROUTES
