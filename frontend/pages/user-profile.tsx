@@ -133,6 +133,18 @@ export default function UserProfilePage() {
                   border: "none",
                   boxShadow: "none",
                 },
+                // Hide add email button and connected accounts
+                profileSectionPrimaryButton__emailAddresses: {
+                  display: "none",
+                },
+                profileSection__connectedAccounts: {
+                  display: "none",
+                },
+                // Hide connected accounts menu item
+                navbarButton__connectedAccounts: {
+                  display: "none",
+                },
+                // Security tab now visible - may have limitations in dev mode
               },
             }}
           />
@@ -151,10 +163,30 @@ export default function UserProfilePage() {
             color: "#0F6E56",
             margin: 0,
           }}>
-            💡 <strong>Tip:</strong> You can manage your password, email, and security settings here. 
+            💡 <strong>Tip:</strong> You can manage your password and profile settings here. 
             Changes are saved automatically.
           </p>
         </div>
+
+        {/* Dev Mode Notice */}
+        {process.env.NODE_ENV === 'development' && (
+          <div style={{
+            marginTop: "16px",
+            padding: "12px 16px",
+            background: "#FFF4E5",
+            borderRadius: "12px",
+            border: "1px solid #FFE0B2",
+          }}>
+            <p style={{
+              fontSize: "12px",
+              color: "#8B5A00",
+              margin: 0,
+            }}>
+              ⚠️ <strong>Note:</strong> Security tab features require Production Clerk keys. 
+              Some options may not work in development mode.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
