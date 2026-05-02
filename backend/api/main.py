@@ -7,7 +7,7 @@ from api.student import management
 from api.notifications import notifications
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api import books, query, history, export, share, users, admin, saved, usage
+from api import books, query, history, export, share, users, admin_core, saved, usage
 # NEW Phase 2.5 imports
 from api import mau_management, admin_cost_tracking
 from api import publisher_payout_management  # ← ADD THIS LINE
@@ -39,7 +39,7 @@ app.include_router(history.router, prefix="/api/history", tags=["History"])
 app.include_router(export.router,  prefix="/api/export",  tags=["Export"])
 app.include_router(share.router,   prefix="/api/share",   tags=["Share"])
 app.include_router(users.router,   prefix="/api/users",   tags=["Users"])
-app.include_router(admin.router,   prefix="/api/admin",   tags=["Admin"])
+app.include_router(admin_core.router,   prefix="/api/admin",   tags=["Admin"])
 app.include_router(saved.router,   prefix="/api/saved",   tags=["Saved"])
 app.include_router(usage.router,   prefix="/api/usage",   tags=["Usage"])
 app.include_router(onboarding.router, prefix="/api", tags=["Institution Onboarding"])
