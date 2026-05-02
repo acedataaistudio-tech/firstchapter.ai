@@ -3,6 +3,8 @@ Firstchapter.ai Backend - Phase 3
 Complete token-based revenue system with institution management
 Institution Fair Usage Policy with monitoring
 """
+from api import packages, user_sync
+from api.admin import institutions as admin_institutions
 from api import colleges
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -95,6 +97,9 @@ app.include_router(packages.router,    prefix="/api",         tags=["Packages"])
 app.include_router(subscriptions.router, prefix="/api",       tags=["Subscriptions"])
 app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
 app.include_router(onboarding.router, prefix="/api", tags=["Institution Onboarding"])
+app.include_router(packages.router, prefix="/api", tags=["Packages"])
+app.include_router(user_sync.router, prefix="/api", tags=["User Sync"])
+app.include_router(admin_institutions.router, prefix="/api", tags=["Admin"])
 
 # ══════════════════════════════════════════════════════════════════
 # PHASE 2.5/3 ROUTES

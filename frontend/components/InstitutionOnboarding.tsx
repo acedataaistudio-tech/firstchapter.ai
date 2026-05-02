@@ -37,11 +37,15 @@ export function InstitutionOnboarding() {
     headDesignation: 'Principal',
     
     // Step 4: Package
+    selectedPackageId: '',
     estimatedStudents: 100,
   });
   
+  const [packages, setPackages] = useState<any[]>([]);
+  
   useEffect(() => {
     loadColleges();
+    loadPackages();
     
     const handleClickOutside = (event: any) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -60,6 +64,16 @@ export function InstitutionOnboarding() {
       setColleges(data.colleges || {});
     } catch (err) {
       console.error('Failed to load colleges:', err);
+    }
+  };
+  
+  const loadPackages = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/packages?type=institution`);
+      const data = await res.json();
+      setPackages(data.packages || []);
+    } catch (err) {
+      console.error('Failed to load packages:', err);
     }
   };
 
@@ -101,6 +115,7 @@ export function InstitutionOnboarding() {
     
     try {
       const locationParts = selectedCollege.location?.split(',') || ['', ''];
+      const selectedPackage = packages.find(p => p.id === formData.selectedPackageId);
       
       const payload = {
         clerk_user_id: user?.id || '',
@@ -132,8 +147,8 @@ export function InstitutionOnboarding() {
         head_designation: formData.headDesignation,
         
         // Package
-        package_id: 'basic',
-        package_name: 'Basic Plan',
+        package_id: formData.selectedPackageId,
+        package_name: selectedPackage?.name || 'Unknown',
         estimated_students: formData.estimatedStudents,
       };
       
@@ -149,7 +164,7 @@ export function InstitutionOnboarding() {
         throw new Error(data.detail || JSON.stringify(data));
       }
       
-      alert('Application submitted successfully!');
+      alert('Application submitted successfully! You will be notified once reviewed.');
       router.reload();
     } catch (err: any) {
       setError(err.message || 'Failed to submit application');
@@ -165,6 +180,7 @@ export function InstitutionOnboarding() {
     if (step === 1) return selectedCollege !== null;
     if (step === 2) return formData.contactPhone && formData.contactPersonName && formData.contactPersonDesignation;
     if (step === 3) return formData.headName && formData.headEmail && formData.headPhone;
+    if (step === 4) return formData.selectedPackageId !== '';
     return true;
   };
   
@@ -189,7 +205,7 @@ export function InstitutionOnboarding() {
               { num: 1, label: 'Institution' },
               { num: 2, label: 'Contact' },
               { num: 3, label: 'Head Info' },
-              { num: 4, label: 'Review' },
+              { num: 4, label: 'Package' },
             ].map((s) => (
               <div key={s.num} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{
@@ -558,48 +574,124 @@ export function InstitutionOnboarding() {
             </div>
           )}
           
-          {/* STEP 4: Review */}
+          {/* STEP 4: Package Selection */}
           {step === 4 && (
             <div>
-              <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '24px' }}>
-                Review & Submit
+              <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '8px' }}>
+                Choose Your Package
               </h2>
+              <p style={{ fontSize: '14px', color: '#888780', marginBottom: '24px' }}>
+                Select the package that best fits your institution's needs
+              </p>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <div style={{ fontSize: '13px', color: '#888780', marginBottom: '4px' }}>Institution</div>
-                  <div style={{ fontSize: '16px', fontWeight: '600' }}>{selectedCollege?.name}</div>
-                </div>
-                
-                <div>
-                  <div style={{ fontSize: '13px', color: '#888780', marginBottom: '4px' }}>Contact Person</div>
-                  <div style={{ fontSize: '15px' }}>{formData.contactPersonName} - {formData.contactPersonDesignation}</div>
-                  <div style={{ fontSize: '14px', color: '#888780' }}>{formData.contactPhone}</div>
-                </div>
-                
-                <div>
-                  <div style={{ fontSize: '13px', color: '#888780', marginBottom: '4px' }}>Head of Institution</div>
-                  <div style={{ fontSize: '15px' }}>{formData.headName} - {formData.headDesignation}</div>
-                  <div style={{ fontSize: '14px', color: '#888780' }}>{formData.headEmail}</div>
-                </div>
-                
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
-                    Estimated Number of Students
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.estimatedStudents}
-                    onChange={(e) => setFormData({ ...formData, estimatedStudents: parseInt(e.target.value) })}
-                    min="10"
-                    max="10000"
-                    style={{
-                      width: '200px',
-                      padding: '12px',
-                      border: '1px solid #e5e4dc',
-                      borderRadius: '8px',
-                    }}
-                  />
+              <div style={{ display: 'grid', gap: '16px', marginBottom: '24px' }}>
+                {packages.map((pkg) => {
+                  const features = pkg.features || {};
+                  const isSelected = formData.selectedPackageId === pkg.id;
+                  
+                  return (
+                    <div
+                      key={pkg.id}
+                      onClick={() => setFormData({ ...formData, selectedPackageId: pkg.id })}
+                      style={{
+                        padding: '20px',
+                        border: isSelected ? '2px solid #1D9E75' : '1px solid #e5e4dc',
+                        borderRadius: '12px',
+                        cursor: 'pointer',
+                        background: isSelected ? '#E1F5EE' : 'white',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) e.currentTarget.style.borderColor = '#1D9E75';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) e.currentTarget.style.borderColor = '#e5e4dc';
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
+                        <div>
+                          <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '4px' }}>
+                            {pkg.name}
+                          </h3>
+                          <div style={{ fontSize: '24px', fontWeight: '700', color: '#1D9E75' }}>
+                            ₹{(pkg.price_yearly / 1000).toFixed(0)}K
+                            <span style={{ fontSize: '14px', fontWeight: '400', color: '#888780' }}>/year</span>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <div style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            background: '#1D9E75',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}>
+                            <Check size={16} />
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px', padding: '12px', background: 'white', borderRadius: '8px' }}>
+                        <div>
+                          <div style={{ fontSize: '11px', color: '#888780', marginBottom: '2px' }}>Input Tokens</div>
+                          <div style={{ fontSize: '14px', fontWeight: '600' }}>
+                            {(parseInt(features.input_tokens) / 1000000000).toFixed(2)}B
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', color: '#888780', marginBottom: '2px' }}>Output Tokens</div>
+                          <div style={{ fontSize: '14px', fontWeight: '600' }}>
+                            {(parseInt(features.output_tokens) / 1000000).toFixed(0)}M
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', color: '#888780', marginBottom: '2px' }}>Free Readers</div>
+                          <div style={{ fontSize: '14px', fontWeight: '600' }}>
+                            {features.free_mau?.toLocaleString()}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', color: '#888780', marginBottom: '2px' }}>Extra Reader</div>
+                          <div style={{ fontSize: '14px', fontWeight: '600' }}>
+                            ₹{features.additional_user_cost}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div style={{ fontSize: '12px', color: '#888780' }}>
+                        {features.features && Array.isArray(features.features) && features.features.map((feature: string, idx: number) => (
+                          <div key={idx} style={{ marginBottom: '4px' }}>
+                            • {feature}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                  Estimated Number of Students
+                </label>
+                <input
+                  type="number"
+                  value={formData.estimatedStudents}
+                  onChange={(e) => setFormData({ ...formData, estimatedStudents: parseInt(e.target.value) || 0 })}
+                  min="10"
+                  max="10000"
+                  style={{
+                    width: '200px',
+                    padding: '12px',
+                    border: '1px solid #e5e4dc',
+                    borderRadius: '8px',
+                  }}
+                />
+                <div style={{ fontSize: '12px', color: '#888780', marginTop: '4px' }}>
+                  This helps us configure your account properly
                 </div>
               </div>
             </div>
