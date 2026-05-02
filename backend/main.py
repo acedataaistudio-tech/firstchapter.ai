@@ -10,16 +10,18 @@ import asyncio
 import logging
 
 # ══════════════════════════════════════════════════════════════════
-# API IMPORTS - Organized by Phase
+# API IMPORTS - All Routes
 # ══════════════════════════════════════════════════════════════════
 
 # Phase 1-2: Core functionality
-from api import books, query, history, export, share, users, admin, saved, usage
+from api import books, query, history, export, share, users, admin_core, saved, usage
 from api import subscriptions, mau_management, admin_cost_tracking, publisher_payout_management
 
 # Phase 3: Institution management
 from api import colleges, packages, user_sync
-from api.institution import onboarding
+from api.institution import onboarding, dashboard
+from api.student import management
+from api.notifications import notifications
 from api.admin import institutions as admin_institutions
 
 # WebSocket
@@ -72,7 +74,7 @@ app = FastAPI(
     title="Firstchapter.ai API",
     description="AI-powered book platform with institution token management",
     version="3.0.0",
-    lifespan=lifespan  # Enable background monitoring
+    lifespan=lifespan
 )
 
 # ══════════════════════════════════════════════════════════════════
@@ -102,6 +104,7 @@ app.include_router(history.router, prefix="/api/history", tags=["History"])
 app.include_router(export.router, prefix="/api/export", tags=["Export"])
 app.include_router(share.router, prefix="/api/share", tags=["Share"])
 app.include_router(users.router, prefix="/api/users", tags=["Users"])
+app.include_router(admin_core.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(saved.router, prefix="/api/saved", tags=["Saved"])
 app.include_router(usage.router, prefix="/api", tags=["Usage"])
 app.include_router(subscriptions.router, prefix="/api", tags=["Subscriptions"])
@@ -113,6 +116,9 @@ app.include_router(publisher_payout_management.router, prefix="/api", tags=["Pub
 app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
 app.include_router(packages.router, prefix="/api", tags=["Packages"])
 app.include_router(onboarding.router, prefix="/api", tags=["Institution Onboarding"])
+app.include_router(dashboard.router, prefix="/api", tags=["Institution Dashboard"])
+app.include_router(management.router, prefix="/api", tags=["Student Management"])
+app.include_router(notifications.router, prefix="/api", tags=["Notifications"])
 app.include_router(user_sync.router, prefix="/api", tags=["User Sync"])
 app.include_router(admin_institutions.router, prefix="/api/admin/institutions", tags=["Admin Institutions"])
 
@@ -189,7 +195,7 @@ def debug():
         "revenue_model": "₹0.01 per output token",
         "institution_model": {
             "commission": "50%",
-            "token_budget": "50% (34% input, 66% output)",
+            "token_budget": "50% (67% input, 33% output)",
             "per_student_cap": "0.5% default (configurable 0.1-2%)",
             "rate_limit": "15 req/min default (configurable 5-30)",
             "concurrency": "disabled",
