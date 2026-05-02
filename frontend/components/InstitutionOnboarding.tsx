@@ -20,7 +20,6 @@ export function InstitutionOnboarding() {
   useEffect(() => {
     loadColleges();
     
-    // Close dropdown when clicking outside
     const handleClickOutside = (event: any) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowDropdown(false);
@@ -43,7 +42,6 @@ export function InstitutionOnboarding() {
     }
   };
 
-  // Filter colleges based on search
   const getFilteredColleges = () => {
     const filtered: any = {};
     const search = searchTerm.toLowerCase();
@@ -78,29 +76,71 @@ export function InstitutionOnboarding() {
     setError('');
     
     try {
+      // Parse location into city and state
+      const locationParts = selectedCollege.location?.split(',') || ['', ''];
+      const city = locationParts[0]?.trim() || 'Unknown';
+      const state = locationParts[1]?.trim() || 'Unknown';
+      
+      // Send ALL required fields
+      const payload = {
+        // Admin details
+        clerk_user_id: user?.id || '',
+        admin_name: user?.fullName || 'Admin',
+        admin_email: user?.emailAddresses?.[0]?.emailAddress || '',
+        
+        // College selection
+        college_id: selectedCollege.id,
+        is_other: false,
+        
+        // Institution details
+        institution_name: selectedCollege.name,
+        institution_type: null,
+        
+        // Address (using college location)
+        address_line1: selectedCollege.name,
+        address_line2: null,
+        city: city,
+        state: state,
+        postal_code: '000000',
+        country: 'India',
+        
+        // Primary contact (using admin details)
+        contact_email: user?.emailAddresses?.[0]?.emailAddress || '',
+        contact_phone: '0000000000',
+        contact_person_name: user?.fullName || 'Admin',
+        contact_person_designation: 'Administrator',
+        
+        // Head of institution (using admin details for now)
+        head_name: user?.fullName || 'Admin',
+        head_email: user?.emailAddresses?.[0]?.emailAddress || '',
+        head_phone: '0000000000',
+        head_designation: 'Principal',
+        
+        // Package selection (default values)
+        package_id: 'basic',
+        package_name: 'Basic Plan',
+        estimated_students: 100,
+      };
+      
+      console.log('Submitting payload:', payload);
+      
       const res = await fetch(`${API_BASE_URL}/api/institution/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clerk_user_id: user?.id,
-          admin_name: user?.fullName || 'Admin',
-          admin_email: user?.emailAddresses?.[0]?.emailAddress,
-          college_id: selectedCollege.id,
-          is_other: false,
-          institution_name: selectedCollege.name,
-          estimated_students: 100,
-        }),
+        body: JSON.stringify(payload),
       });
       
       const data = await res.json();
+      console.log('Response:', data);
       
       if (!res.ok) {
-        throw new Error(data.detail || 'Application failed');
+        throw new Error(data.detail || JSON.stringify(data));
       }
       
-      alert('Application submitted successfully!');
-      router.push('/institution');
+      alert('Application submitted successfully! You will be notified once reviewed.');
+      router.reload();
     } catch (err: any) {
+      console.error('Submit error:', err);
       setError(err.message || 'Failed to submit application');
     } finally {
       setLoading(false);
@@ -149,7 +189,6 @@ export function InstitutionOnboarding() {
           
           {/* Searchable Dropdown */}
           <div ref={dropdownRef} style={{ position: 'relative', marginBottom: '24px' }}>
-            {/* Search Input */}
             <div style={{ position: 'relative' }}>
               <Search size={18} style={{
                 position: 'absolute',
@@ -187,7 +226,6 @@ export function InstitutionOnboarding() {
               }} onClick={() => setShowDropdown(!showDropdown)} />
             </div>
             
-            {/* Dropdown Results */}
             {showDropdown && (
               <div style={{
                 position: 'absolute',
@@ -202,7 +240,6 @@ export function InstitutionOnboarding() {
                 boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
                 zIndex: 1000,
               }}>
-                {/* Results count */}
                 <div style={{
                   padding: '12px 16px',
                   borderBottom: '1px solid #f5f5f3',
@@ -213,7 +250,6 @@ export function InstitutionOnboarding() {
                   {totalResults} colleges found
                 </div>
                 
-                {/* College list grouped by type */}
                 {Object.entries(filteredColleges).map(([type, items]: [string, any]) => (
                   <div key={type}>
                     <div style={{
@@ -269,7 +305,6 @@ export function InstitutionOnboarding() {
             )}
           </div>
           
-          {/* Selected College Display */}
           {selectedCollege && (
             <div style={{
               padding: '16px',
@@ -290,7 +325,6 @@ export function InstitutionOnboarding() {
             </div>
           )}
           
-          {/* Submit Button */}
           <button
             onClick={handleSubmit}
             disabled={loading || !selectedCollege}
