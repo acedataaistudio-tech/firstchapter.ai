@@ -1,23 +1,48 @@
 import { SignUp } from '@clerk/nextjs';
-import { useRouter } from 'next/router';
 import { useUser } from '@clerk/nextjs';
 import { useEffect } from 'react';
-import { syncUserToDatabase } from '../../utils/userSync';
+
+const API_BASE_URL = 'https://firstchapterai-production.up.railway.app';
+
+async function syncUserToDatabase(clerkUser: any, userType: 'reader' | 'institution') {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/user/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        clerk_user_id: clerkUser.id,
+        email: clerkUser.emailAddresses[0]?.emailAddress || '',
+        full_name: clerkUser.fullName || clerkUser.emailAddresses[0]?.emailAddress || '',
+        user_type: userType,
+      }),
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      console.error('Failed to sync user:', data);
+      return false;
+    }
+    
+    console.log('User synced successfully:', data);
+    return true;
+  } catch (error) {
+    console.error('Error syncing user:', error);
+    return false;
+  }
+}
 
 export default function InstitutionSignUp() {
   const { user, isLoaded } = useUser();
 
   useEffect(() => {
     if (isLoaded && user) {
+      // User just signed up, sync to database
       syncUserToDatabase(user, 'institution');
     }
   }, [user, isLoaded]);
-
-  return <SignUp ... />;
-}
-
-export default function InstitutionSignUp() {
-  const router = useRouter();
 
   return (
     <div style={{
@@ -51,7 +76,7 @@ export default function InstitutionSignUp() {
         routing="path"
         path="/institution/sign-up"
         signInUrl="/institution/sign-in"
-        afterSignUpUrl="/institution/onboarding"
+        afterSignUpUrl="/institution"
         unsafeMetadata={{
           userType: 'institution'
         }}
