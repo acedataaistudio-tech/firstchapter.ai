@@ -162,7 +162,6 @@ async def submit_institution_application(request: InstitutionOnboardingRequest):
             "clerk_user_id": request.clerk_user_id,
             "name": institution_name,
             "type": institution_type,
-            "full_name": institution_name,
             
             # Application status
             "application_status": "pending",
