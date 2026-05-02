@@ -3,39 +3,99 @@ Firstchapter.ai Backend - Phase 3
 Complete token-based revenue system with institution management
 Institution Fair Usage Policy with monitoring
 """
-"""
-Firstchapter.ai Backend - Phase 3
-Complete token-based revenue system with institution management
-Institution Fair Usage Policy with monitoring
-"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 import logging
 
-# Phase 1-2 API imports
+# ══════════════════════════════════════════════════════════════════
+# API IMPORTS - Organized by Phase
+# ══════════════════════════════════════════════════════════════════
+
+# Phase 1-2: Core functionality
 from api import books, query, history, export, share, users, admin, saved, usage
 from api import subscriptions, mau_management, admin_cost_tracking, publisher_payout_management
 
-# Phase 3 API imports
+# Phase 3: Institution management
 from api import colleges, packages, user_sync
 from api.institution import onboarding
 from api.admin import institutions as admin_institutions
 
+# WebSocket
 from websocket_handler.websocket import router as ws_router
 
 logging.basicConfig(level=logging.INFO)
 
-# ... (keep the lifespan function as is)
-
-# ... (keep the app creation as is)
-
 # ══════════════════════════════════════════════════════════════════
-# ROUTE REGISTRATIONS - NO DUPLICATES
+# LIFESPAN MANAGEMENT - Institution Monitoring Background Task
 # ══════════════════════════════════════════════════════════════════
 
-# Phase 1-2 Routes
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Manage application lifespan.
+    Starts institution monitoring on startup, stops on shutdown.
+    """
+    # Startup
+    logging.info("🚀 Starting Firstchapter.ai Backend...")
+    
+    # Start institution monitoring background task
+    monitoring_task = None
+    try:
+        from api.institution.institution_monitoring import run_monitoring_forever
+        from database.crud import get_db
+        
+        logging.info("🔍 Starting institution quota monitoring...")
+        monitoring_task = asyncio.create_task(run_monitoring_forever(get_db()))
+        logging.info("✅ Institution monitoring started successfully")
+    except Exception as e:
+        logging.warning(f"⚠️ Could not start institution monitoring: {e}")
+        logging.warning("   (This is OK if institution features not yet deployed)")
+    
+    yield  # Application is running
+    
+    # Shutdown
+    logging.info("🛑 Shutting down Firstchapter.ai Backend...")
+    if monitoring_task:
+        monitoring_task.cancel()
+        try:
+            await monitoring_task
+        except asyncio.CancelledError:
+            logging.info("✅ Institution monitoring stopped")
+
+# ══════════════════════════════════════════════════════════════════
+# CREATE APP WITH LIFESPAN
+# ══════════════════════════════════════════════════════════════════
+
+app = FastAPI(
+    title="Firstchapter.ai API",
+    description="AI-powered book platform with institution token management",
+    version="3.0.0",
+    lifespan=lifespan  # Enable background monitoring
+)
+
+# ══════════════════════════════════════════════════════════════════
+# MIDDLEWARE
+# ══════════════════════════════════════════════════════════════════
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://www.firstchapter.ai",
+        "https://firstchapter.ai",
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ══════════════════════════════════════════════════════════════════
+# ROUTE REGISTRATIONS
+# ══════════════════════════════════════════════════════════════════
+
+# Phase 1-2: Core API Routes
 app.include_router(books.router, prefix="/api/books", tags=["Books"])
 app.include_router(query.router, prefix="/api", tags=["Query"])
 app.include_router(history.router, prefix="/api/history", tags=["History"])
@@ -50,7 +110,7 @@ app.include_router(mau_management.router, prefix="/api", tags=["MAU Management"]
 app.include_router(admin_cost_tracking.router, prefix="/api", tags=["Admin Cost Tracking"])
 app.include_router(publisher_payout_management.router, prefix="/api", tags=["Publisher Payout Management"])
 
-# Phase 3 Routes - Institution Management
+# Phase 3: Institution Management Routes
 app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
 app.include_router(packages.router, prefix="/api", tags=["Packages"])
 app.include_router(onboarding.router, prefix="/api", tags=["Institution Onboarding"])
@@ -59,6 +119,7 @@ app.include_router(admin_institutions.router, prefix="/api/admin", tags=["Admin 
 
 # WebSocket
 app.include_router(ws_router)
+
 # ══════════════════════════════════════════════════════════════════
 # ROOT ENDPOINTS
 # ══════════════════════════════════════════════════════════════════
@@ -137,14 +198,3 @@ def debug():
         },
         "phase": "3.0 - Institution Management"
     }
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://www.firstchapter.ai",
-        "https://firstchapter.ai",
-        "http://localhost:3000",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
