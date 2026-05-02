@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/router';
-import { Search, Check, AlertCircle } from 'lucide-react';
+import { Search, ChevronDown, AlertCircle } from 'lucide-react';
 
 const API_BASE_URL = 'https://firstchapterai-production.up.railway.app';
 
@@ -9,27 +9,26 @@ export function InstitutionOnboarding() {
   const { user } = useUser();
   const router = useRouter();
   
-  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  const [formData, setFormData] = useState({
-    selectedCollegeId: '',
-    selectedCollegeName: '',
-    isOther: false,
-    institutionName: '',
-    institutionType: '',
-    contactEmail: user?.emailAddresses?.[0]?.emailAddress || '',
-    contactPersonName: user?.fullName || '',
-    packageId: '',
-    estimatedStudents: 100,
-  });
-  
   const [colleges, setColleges] = useState<any>({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedCollege, setSelectedCollege] = useState<any>(null);
+  const dropdownRef = useRef<any>(null);
   
   useEffect(() => {
     loadColleges();
+    
+    // Close dropdown when clicking outside
+    const handleClickOutside = (event: any) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
   const loadColleges = async () => {
@@ -44,46 +43,37 @@ export function InstitutionOnboarding() {
     }
   };
 
-  const filteredColleges: any = {};
-  if (searchTerm) {
+  // Filter colleges based on search
+  const getFilteredColleges = () => {
+    const filtered: any = {};
+    const search = searchTerm.toLowerCase();
+    
     Object.entries(colleges).forEach(([type, items]: [string, any]) => {
-      const filtered = items.filter((college: any) => 
-        college.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        college.location?.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchingItems = items.filter((college: any) => 
+        college.name?.toLowerCase().includes(search) ||
+        college.location?.toLowerCase().includes(search) ||
+        type.toLowerCase().includes(search)
       );
-      if (filtered.length > 0) {
-        filteredColleges[type] = filtered;
+      if (matchingItems.length > 0) {
+        filtered[type] = matchingItems;
       }
     });
-  } else {
-    Object.assign(filteredColleges, colleges);
-  }
+    
+    return filtered;
+  };
   
-  const handleCollegeSelect = (e: any) => {
-    const value = e.target.value;
-    
-    if (value === 'other') {
-      setFormData({ ...formData, selectedCollegeId: '', isOther: true });
-      return;
-    }
-    
-    let selectedCollege: any = null;
-    Object.values(colleges).forEach((items: any) => {
-      const found = items.find((c: any) => c.id === value);
-      if (found) selectedCollege = found;
-    });
-    
-    if (selectedCollege) {
-      setFormData({
-        ...formData,
-        selectedCollegeId: value,
-        selectedCollegeName: selectedCollege.name,
-        isOther: false,
-      });
-    }
+  const handleSelectCollege = (college: any) => {
+    setSelectedCollege(college);
+    setSearchTerm(college.display_name);
+    setShowDropdown(false);
   };
   
   const handleSubmit = async () => {
+    if (!selectedCollege) {
+      setError('Please select a college');
+      return;
+    }
+    
     setLoading(true);
     setError('');
     
@@ -93,26 +83,32 @@ export function InstitutionOnboarding() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clerk_user_id: user?.id,
-          admin_name: formData.contactPersonName,
-          admin_email: formData.contactEmail,
-          college_id: formData.isOther ? null : formData.selectedCollegeId,
-          is_other: formData.isOther,
-          institution_name: formData.isOther ? formData.institutionName : formData.selectedCollegeName,
-          institution_type: formData.institutionType,
-          estimated_students: formData.estimatedStudents,
+          admin_name: user?.fullName || 'Admin',
+          admin_email: user?.emailAddresses?.[0]?.emailAddress,
+          college_id: selectedCollege.id,
+          is_other: false,
+          institution_name: selectedCollege.name,
+          estimated_students: 100,
         }),
       });
       
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Application failed');
       
+      if (!res.ok) {
+        throw new Error(data.detail || 'Application failed');
+      }
+      
+      alert('Application submitted successfully!');
       router.push('/institution');
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Failed to submit application');
     } finally {
       setLoading(false);
     }
   };
+  
+  const filteredColleges = getFilteredColleges();
+  const totalResults = Object.values(filteredColleges).flat().length;
   
   return (
     <div style={{
@@ -128,110 +124,190 @@ export function InstitutionOnboarding() {
           padding: '32px',
           border: '0.5px solid #e5e4dc',
         }}>
+          <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '8px' }}>
+            Select Your Institution
+          </h2>
+          <p style={{ fontSize: '14px', color: '#888780', marginBottom: '24px' }}>
+            Search from 422 colleges across India
+          </p>
+          
           {error && (
             <div style={{
               padding: '12px 16px',
               background: '#FEE',
               border: '1px solid #FCC',
               borderRadius: '8px',
-              marginBottom: '24px',
+              marginBottom: '20px',
+              display: 'flex',
+              gap: '8px',
+              alignItems: 'center',
             }}>
               <AlertCircle size={18} style={{ color: '#C00' }} />
-              <span style={{ fontSize: '14px', color: '#800', marginLeft: '8px' }}>{error}</span>
+              <span style={{ fontSize: '14px', color: '#800' }}>{error}</span>
             </div>
           )}
           
-          <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '8px' }}>
-            Select Your Institution
-          </h2>
-          <p style={{ fontSize: '14px', color: '#888780', marginBottom: '24px' }}>
-            Choose from 422 colleges or enter manually
-          </p>
-          
-          <div style={{ position: 'relative', marginBottom: '16px' }}>
-            <Search size={18} style={{
-              position: 'absolute',
-              left: '12px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: '#888780',
-            }} />
-            <input
-              type="text"
-              placeholder="Search colleges..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 12px 10px 40px',
-                border: '1px solid #e5e4dc',
-                borderRadius: '8px',
-                fontSize: '14px',
-              }}
-            />
-          </div>
-          
-          <div style={{ marginBottom: '24px' }}>
-            <select
-              value={formData.selectedCollegeId || (formData.isOther ? 'other' : '')}
-              onChange={handleCollegeSelect}
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '1px solid #e5e4dc',
-                borderRadius: '8px',
-                fontSize: '14px',
-              }}
-            >
-              <option value="">-- Select Institution ({Object.values(colleges).flat().length} colleges) --</option>
-              {Object.entries(filteredColleges).map(([type, items]: [string, any]) => (
-                <optgroup key={type} label={`${type} (${items.length})`}>
-                  {items.map((college: any) => (
-                    <option key={college.id} value={college.id}>
-                      {college.display_name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-              <option value="other">Other (Not in list)</option>
-            </select>
-          </div>
-          
-          {formData.isOther && (
-            <div style={{ marginBottom: '16px' }}>
+          {/* Searchable Dropdown */}
+          <div ref={dropdownRef} style={{ position: 'relative', marginBottom: '24px' }}>
+            {/* Search Input */}
+            <div style={{ position: 'relative' }}>
+              <Search size={18} style={{
+                position: 'absolute',
+                left: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#888780',
+              }} />
               <input
                 type="text"
-                value={formData.institutionName}
-                onChange={(e) => setFormData({ ...formData, institutionName: e.target.value })}
-                placeholder="Enter institution name"
+                placeholder="Search colleges by name, location, or type..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setShowDropdown(true);
+                  setSelectedCollege(null);
+                }}
+                onFocus={() => setShowDropdown(true)}
                 style={{
                   width: '100%',
-                  padding: '12px',
+                  padding: '14px 40px 14px 40px',
                   border: '1px solid #e5e4dc',
                   borderRadius: '8px',
-                  fontSize: '14px',
+                  fontSize: '15px',
+                  outline: showDropdown ? '2px solid #1D9E75' : 'none',
                 }}
               />
+              <ChevronDown size={18} style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#888780',
+                cursor: 'pointer',
+              }} onClick={() => setShowDropdown(!showDropdown)} />
+            </div>
+            
+            {/* Dropdown Results */}
+            {showDropdown && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 4px)',
+                left: 0,
+                right: 0,
+                maxHeight: '400px',
+                overflowY: 'auto',
+                background: 'white',
+                border: '1px solid #e5e4dc',
+                borderRadius: '8px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                zIndex: 1000,
+              }}>
+                {/* Results count */}
+                <div style={{
+                  padding: '12px 16px',
+                  borderBottom: '1px solid #f5f5f3',
+                  fontSize: '13px',
+                  color: '#888780',
+                  fontWeight: '500',
+                }}>
+                  {totalResults} colleges found
+                </div>
+                
+                {/* College list grouped by type */}
+                {Object.entries(filteredColleges).map(([type, items]: [string, any]) => (
+                  <div key={type}>
+                    <div style={{
+                      padding: '8px 16px',
+                      background: '#f9f9f7',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#2C2C2A',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}>
+                      {type} ({items.length})
+                    </div>
+                    {items.map((college: any) => (
+                      <div
+                        key={college.id}
+                        onClick={() => handleSelectCollege(college)}
+                        style={{
+                          padding: '12px 16px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f5f5f3',
+                          background: selectedCollege?.id === college.id ? '#E1F5EE' : 'transparent',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#E1F5EE'}
+                        onMouseLeave={(e) => {
+                          if (selectedCollege?.id !== college.id) {
+                            e.currentTarget.style.background = 'transparent';
+                          }
+                        }}
+                      >
+                        <div style={{ fontSize: '14px', fontWeight: '500', color: '#2C2C2A', marginBottom: '2px' }}>
+                          {college.name}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#888780' }}>
+                          {college.location}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                
+                {totalResults === 0 && (
+                  <div style={{
+                    padding: '40px 20px',
+                    textAlign: 'center',
+                    color: '#888780',
+                    fontSize: '14px',
+                  }}>
+                    No colleges found matching "{searchTerm}"
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          
+          {/* Selected College Display */}
+          {selectedCollege && (
+            <div style={{
+              padding: '16px',
+              background: '#E1F5EE',
+              border: '1px solid #1D9E75',
+              borderRadius: '8px',
+              marginBottom: '24px',
+            }}>
+              <div style={{ fontSize: '13px', color: '#0F6B4F', fontWeight: '600', marginBottom: '4px' }}>
+                ✓ Selected Institution
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: '600', color: '#2C2C2A' }}>
+                {selectedCollege.name}
+              </div>
+              <div style={{ fontSize: '13px', color: '#888780' }}>
+                {selectedCollege.location}
+              </div>
             </div>
           )}
           
+          {/* Submit Button */}
           <button
             onClick={handleSubmit}
-            disabled={loading || (!formData.selectedCollegeId && !formData.institutionName)}
+            disabled={loading || !selectedCollege}
             style={{
               width: '100%',
               padding: '14px',
               border: 'none',
               borderRadius: '8px',
-              background: '#1D9E75',
+              background: selectedCollege ? '#1D9E75' : '#e5e4dc',
               color: 'white',
-              cursor: loading ? 'not-allowed' : 'pointer',
+              cursor: loading || !selectedCollege ? 'not-allowed' : 'pointer',
               fontSize: '15px',
               fontWeight: '600',
               opacity: loading ? 0.6 : 1,
             }}
           >
-            {loading ? 'Submitting...' : 'Submit Application'}
+            {loading ? 'Submitting Application...' : 'Submit Application'}
           </button>
         </div>
       </div>
