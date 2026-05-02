@@ -115,7 +115,7 @@ app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
 app.include_router(packages.router, prefix="/api", tags=["Packages"])
 app.include_router(onboarding.router, prefix="/api", tags=["Institution Onboarding"])
 app.include_router(user_sync.router, prefix="/api", tags=["User Sync"])
-app.include_router(admin_institutions.router, prefix="/api/admin", tags=["Admin Institutions"])
+app.include_router(admin_institutions.router, prefix="/api/admin/institutions", tags=["Admin Institutions"])
 
 # WebSocket
 app.include_router(ws_router)

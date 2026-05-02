@@ -19,7 +19,7 @@ class InstitutionApprovalRequest(BaseModel):
     rejection_reason: Optional[str] = None
     package_id: Optional[str] = None
 
-@router.get("/admin/institutions")
+@router.get("/list")
 async def get_institution_applications(status: str = 'pending'):
     """
     Get institution applications filtered by status.
@@ -45,7 +45,7 @@ async def get_institution_applications(status: str = 'pending'):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/admin/institution/approve")
+@router.post("/approve")
 async def approve_or_reject_institution(request: InstitutionApprovalRequest):
     """
     Approve or reject an institution application.
