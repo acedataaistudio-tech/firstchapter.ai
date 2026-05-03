@@ -3,13 +3,19 @@ Platform Admin API - Manage Institution Applications
 Approve/reject institutions and create subscriptions
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 import uuid
 
 router = APIRouter()
+
+ADMIN_SECRET = "firstchapter@admin2026"
+
+def verify_admin(x_admin_secret: str = Header(...)):
+    if x_admin_secret != ADMIN_SECRET:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 class InstitutionApprovalRequest(BaseModel):
     institution_id: str
@@ -20,11 +26,12 @@ class InstitutionApprovalRequest(BaseModel):
     package_id: Optional[str] = None
 
 @router.get("/list")
-async def get_institution_applications(status: str = 'pending'):
+async def get_institution_applications(status: str = 'pending', x_admin_secret: str = Header(...)):
     """
     Get institution applications filtered by status.
     Status: pending, approved, rejected
     """
+    verify_admin(x_admin_secret)
     from database.crud import get_db
     db = get_db()
     
@@ -46,7 +53,7 @@ async def get_institution_applications(status: str = 'pending'):
 
 
 @router.post("/approve")
-async def approve_or_reject_institution(request: InstitutionApprovalRequest):
+async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_admin_secret: str = Header(...)):
     """
     Approve or reject an institution application.
     
@@ -55,6 +62,7 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest):
     - Creates subscription with token allocation from package
     - Sends notification to institution admin
     """
+    verify_admin(x_admin_secret)
     from database.crud import get_db
     db = get_db()
     
