@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Users, TrendingUp, Package, Clock, AlertCircle, User } from 'lucide-react';
+import { useUser } from '@clerk/nextjs';
+import { Users, TrendingUp, Package, Clock, AlertCircle, User, ShoppingCart } from 'lucide-react';
 import { StudentManagement } from './StudentManagement';
 import { FUPSettings } from './FUPSettings';
 import { ActivityLog } from './ActivityLog';
+import { PurchaseMAUModal } from './PurchaseMAUModal';
 
 const API_BASE_URL = 'https://firstchapterai-production.up.railway.app';
 
@@ -11,12 +13,16 @@ interface DashboardProps {
 }
 
 export function InstitutionDashboard({ institutionId }: DashboardProps) {
+  const { user } = useUser();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [mauStatus, setMauStatus] = useState<any>(null);
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   
   useEffect(() => {
     loadDashboard();
+    loadMAUStatus();
   }, [institutionId]);
   
   const loadDashboard = async () => {
@@ -29,6 +35,21 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
     } finally {
       setLoading(false);
     }
+  };
+  
+  const loadMAUStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/institution/${institutionId}/mau-status`);
+      const result = await res.json();
+      setMauStatus(result);
+    } catch (err) {
+      console.error('Failed to load MAU status:', err);
+    }
+  };
+  
+  const handlePurchaseSuccess = () => {
+    loadDashboard();
+    loadMAUStatus();
   };
   
   if (loading || !data) {
@@ -119,7 +140,118 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
         </div>
         
         <div style={{ padding: '24px' }}>
-          {activeTab === 'overview' && <div>Usage overview coming soon</div>}
+          {activeTab === 'overview' && (
+            <div>
+              {/* MAU Status Card */}
+              {mauStatus && (
+                <div style={{
+                  background: mauStatus.usage_percent > 80 ? '#FFF4E5' : '#E6F1FB',
+                  border: `1px solid ${mauStatus.usage_percent > 80 ? '#FFE0B2' : '#D0E7F9'}`,
+                  borderRadius: '16px',
+                  padding: '24px',
+                  marginBottom: '24px',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                    <div>
+                      <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Users size={20} style={{ color: mauStatus.usage_percent > 80 ? '#F39C12' : '#378ADD' }} />
+                        Monthly Active Users (MAU)
+                      </h3>
+                      <p style={{ fontSize: '13px', color: '#666', margin: 0 }}>
+                        Current capacity and usage of active students
+                      </p>
+                    </div>
+                    {mauStatus.usage_percent > 70 && (
+                      <button
+                        onClick={() => setShowPurchaseModal(true)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '10px 16px',
+                          background: '#1D9E75',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <ShoppingCart size={16} />
+                        Buy More Readers
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '20px', marginBottom: '16px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '6px' }}>Active Students</div>
+                      <div style={{ fontSize: '32px', fontWeight: '700', color: mauStatus.usage_percent > 80 ? '#F39C12' : '#378ADD' }}>
+                        {mauStatus.active_users} <span style={{ fontSize: '18px', fontWeight: '400', color: '#888780' }}>/ {mauStatus.total_capacity}</span>
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
+                        {mauStatus.usage_percent}% capacity used
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '6px' }}>Free Included</div>
+                      <div style={{ fontSize: '24px', fontWeight: '600' }}>{mauStatus.free_users_limit}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '6px' }}>Additional Purchased</div>
+                      <div style={{ fontSize: '24px', fontWeight: '600', color: '#1D9E75' }}>
+                        +{mauStatus.additional_purchased}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div style={{ 
+                    background: 'rgba(0,0,0,0.1)', 
+                    height: '8px', 
+                    borderRadius: '4px', 
+                    overflow: 'hidden',
+                    marginBottom: '12px'
+                  }}>
+                    <div style={{
+                      width: `${Math.min(mauStatus.usage_percent, 100)}%`,
+                      height: '100%',
+                      background: mauStatus.usage_percent > 90 ? '#E74C3C' : mauStatus.usage_percent > 80 ? '#F39C12' : '#1D9E75',
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </div>
+
+                  {mauStatus.usage_percent > 80 && (
+                    <div style={{ 
+                      fontSize: '13px', 
+                      color: mauStatus.usage_percent > 90 ? '#C0392B' : '#8B5A00',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <AlertCircle size={14} />
+                      {mauStatus.usage_percent > 90 
+                        ? '⚠️ Critical: Approaching capacity limit! Purchase additional readers to avoid blocking new students.'
+                        : '⚠️ Warning: You\'re using over 80% of your capacity. Consider purchasing additional readers.'}
+                    </div>
+                  )}
+
+                  {mauStatus.additional_purchased > 0 && (
+                    <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px', fontWeight: '500' }}>
+                        💡 Price: ₹{mauStatus.price_per_reader} per additional reader
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ fontSize: '14px', color: '#888780' }}>
+                Detailed usage analytics coming soon
+              </div>
+            </div>
+          )}
           {activeTab === 'students' && <StudentManagement institutionId={institutionId} />}
           {activeTab === 'settings' && <FUPSettings institutionId={institutionId} currentSettings={data.settings} onUpdate={loadDashboard} />}
           {activeTab === 'activity' && <ActivityLog activity={activity} />}
@@ -259,6 +391,18 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
           )}
         </div>
       </div>
+      
+      {/* Purchase MAU Modal */}
+      {showPurchaseModal && mauStatus && user && (
+        <PurchaseMAUModal
+          institutionId={institutionId}
+          adminUserId={user.id}
+          adminName={user.fullName || 'Admin'}
+          currentCapacity={mauStatus.total_capacity}
+          onClose={() => setShowPurchaseModal(false)}
+          onSuccess={handlePurchaseSuccess}
+        />
+      )}
     </div>
   );
 }
