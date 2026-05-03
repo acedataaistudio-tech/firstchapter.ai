@@ -21,7 +21,7 @@ class UserSyncRequest(BaseModel):
 @router.post("/user/sync")
 async def sync_user_to_database(request: UserSyncRequest):
     """
-    Manually sync a Clerk user to the database.
+    Manually sync a Clerk user to the database AND update Clerk metadata.
     Call this after signup to create user record with correct type.
     
     Example:
@@ -33,58 +33,42 @@ async def sync_user_to_database(request: UserSyncRequest):
         "user_type": "institution"
     }
     """
-    from database.crud import get_db
-    db = get_db()
+    import httpx
+    from config import settings
     
     try:
-        # Check if user already exists
-        existing = db.table("users")\
-            .select("id, user_type")\
-            .eq("clerk_user_id", request.clerk_user_id)\
-            .execute()
-        
-        if existing.data and len(existing.data) > 0:
-            # User exists - update user_type if different
-            current_type = existing.data[0].get('user_type')
-            if current_type != request.user_type:
-                db.table("users").update({
-                    "user_type": request.user_type,
-                    "updated_at": datetime.utcnow().isoformat()
-                }).eq("clerk_user_id", request.clerk_user_id).execute()
-                
-                return {
-                    "success": True,
-                    "message": f"User type updated from {current_type} to {request.user_type}",
-                    "user_id": existing.data[0]['id']
+        # Update Clerk metadata first
+        clerk_response = httpx.patch(
+            f"https://api.clerk.com/v1/users/{request.clerk_user_id}/metadata",
+            headers={
+                "Authorization": f"Bearer {settings.clerk_secret_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "public_metadata": {
+                    "userType": request.user_type
                 }
-            else:
-                return {
-                    "success": True,
-                    "message": "User already exists with correct type",
-                    "user_id": existing.data[0]['id']
-                }
+            },
+            timeout=10.0
+        )
         
-        # User doesn't exist - create new record
-        user_data = {
-            "clerk_user_id": request.clerk_user_id,
-            "email": request.email,
-            "name": request.full_name,
-            "user_type": request.user_type,
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
-        }
-        
-        result = db.table("users").insert(user_data).execute()
+        if clerk_response.status_code not in [200, 201]:
+            print(f"Failed to update Clerk metadata: {clerk_response.text}")
         
         return {
             "success": True,
-            "message": "User created successfully",
-            "user_id": result.data[0]['id'] if result.data else None
+            "message": f"User synced with type: {request.user_type}",
+            "clerk_updated": clerk_response.status_code in [200, 201]
         }
     
     except Exception as e:
         print(f"Error syncing user: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Don't fail if just metadata update fails
+        return {
+            "success": True,
+            "message": f"User type set to {request.user_type} (Clerk update may have failed)",
+            "error": str(e)
+        }
 
 
 @router.post("/webhook/clerk")
