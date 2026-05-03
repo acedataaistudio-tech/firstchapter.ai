@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, TrendingUp, Package, Clock, AlertCircle } from 'lucide-react';
+import { Users, TrendingUp, Package, Clock, AlertCircle, User } from 'lucide-react';
 import { StudentManagement } from './StudentManagement';
 import { FUPSettings } from './FUPSettings';
 import { ActivityLog } from './ActivityLog';
@@ -98,6 +98,7 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
             { id: 'students', label: 'Students' },
             { id: 'settings', label: 'Settings' },
             { id: 'activity', label: 'Activity' },
+            { id: 'profile', label: 'Profile' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -122,6 +123,140 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
           {activeTab === 'students' && <StudentManagement institutionId={institutionId} />}
           {activeTab === 'settings' && <FUPSettings institutionId={institutionId} currentSettings={data.settings} onUpdate={loadDashboard} />}
           {activeTab === 'activity' && <ActivityLog activity={activity} />}
+          {activeTab === 'profile' && (
+            <div style={{ maxWidth: '800px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '24px' }}>Institution Profile</h2>
+              
+              {/* Institution Details */}
+              <div style={{ background: '#f9f9f7', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <User size={18} style={{ color: '#378ADD' }} />
+                  Institution Details
+                </h3>
+                <div style={{ display: 'grid', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#888780', marginBottom: '4px' }}>Institution Name</div>
+                    <div style={{ fontSize: '15px', fontWeight: '500' }}>{data.institution?.name || 'N/A'}</div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#888780', marginBottom: '4px' }}>City</div>
+                      <div style={{ fontSize: '15px' }}>{data.institution?.city || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#888780', marginBottom: '4px' }}>State</div>
+                      <div style={{ fontSize: '15px' }}>{data.institution?.state || 'N/A'}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#888780', marginBottom: '4px' }}>Address</div>
+                    <div style={{ fontSize: '15px' }}>{data.institution?.address_line1 || 'N/A'}</div>
+                    {data.institution?.address_line2 && (
+                      <div style={{ fontSize: '15px', marginTop: '2px' }}>{data.institution.address_line2}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Contact Person */}
+              <div style={{ background: '#f9f9f7', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>Contact Person</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#888780', marginBottom: '4px' }}>Name</div>
+                    <div style={{ fontSize: '15px' }}>{data.institution?.contact_person_name || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#888780', marginBottom: '4px' }}>Designation</div>
+                    <div style={{ fontSize: '15px' }}>{data.institution?.contact_person_designation || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#888780', marginBottom: '4px' }}>Email</div>
+                    <div style={{ fontSize: '15px' }}>{data.institution?.contact_email || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#888780', marginBottom: '4px' }}>Phone</div>
+                    <div style={{ fontSize: '15px' }}>{data.institution?.contact_phone || 'N/A'}</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Head of Institution */}
+              <div style={{ background: '#f9f9f7', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>Head of Institution</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#888780', marginBottom: '4px' }}>Name</div>
+                    <div style={{ fontSize: '15px' }}>{data.institution?.head_name || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#888780', marginBottom: '4px' }}>Designation</div>
+                    <div style={{ fontSize: '15px' }}>{data.institution?.head_designation || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#888780', marginBottom: '4px' }}>Email</div>
+                    <div style={{ fontSize: '15px' }}>{data.institution?.head_email || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#888780', marginBottom: '4px' }}>Phone</div>
+                    <div style={{ fontSize: '15px' }}>{data.institution?.head_phone || 'N/A'}</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Subscription Details */}
+              <div style={{ background: '#E6F1FB', padding: '20px', borderRadius: '12px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Package size={18} style={{ color: '#378ADD' }} />
+                  Subscription Details
+                </h3>
+                <div style={{ display: 'grid', gap: '12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Package</div>
+                      <div style={{ fontSize: '16px', fontWeight: '600', color: '#378ADD' }}>{subscription.package_name || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Status</div>
+                      <div style={{ fontSize: '16px', fontWeight: '600', color: '#1D9E75' }}>Active</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Input Tokens</div>
+                      <div style={{ fontSize: '15px' }}>
+                        {(subscription.input_tokens_allocated / 1000000000).toFixed(2)}B allocated
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#666', marginTop: '2px' }}>
+                        {(subscription.input_tokens_used / 1000000000).toFixed(2)}B used
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Output Tokens</div>
+                      <div style={{ fontSize: '15px' }}>
+                        {(subscription.output_tokens_allocated / 1000000).toFixed(0)}M allocated
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#666', marginTop: '2px' }}>
+                        {(subscription.output_tokens_used / 1000000).toFixed(0)}M used
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Free Readers</div>
+                      <div style={{ fontSize: '15px' }}>{subscription.free_users_limit || 0} students</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Subscription Period</div>
+                      <div style={{ fontSize: '15px' }}>
+                        {subscription.start_date ? new Date(subscription.start_date).toLocaleDateString() : 'N/A'} - {subscription.end_date ? new Date(subscription.end_date).toLocaleDateString() : 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

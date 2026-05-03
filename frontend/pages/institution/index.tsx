@@ -1,18 +1,24 @@
-import { useUser } from '@clerk/nextjs';
+import { useUser, useClerk } from '@clerk/nextjs';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { InstitutionOnboarding } from '../../components/InstitutionOnboarding';
 import { InstitutionDashboard } from '../../components/InstitutionDashboard';
 import { NotificationBell } from '../../components/NotificationBell';
-import { Clock, XCircle, AlertCircle } from 'lucide-react';
+import { Clock, XCircle, AlertCircle, LogOut } from 'lucide-react';
 
 const API_BASE_URL = 'https://firstchapterai-production.up.railway.app';
 
 export default function InstitutionPage() {
   const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
   const router = useRouter();
   const [applicationStatus, setApplicationStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  const handleLogout = async () => {
+    await signOut();
+    router.push('/');
+  };
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -150,7 +156,36 @@ export default function InstitutionPage() {
               {applicationStatus.institution_name}
             </p>
           </div>
-          <NotificationBell userId={user?.id || ''} userRole="institution" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <NotificationBell userId={user?.id || ''} userRole="institution" />
+            <button
+              onClick={handleLogout}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid #e5e4dc',
+                borderRadius: '8px',
+                color: '#888780',
+                fontSize: '14px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#f9f9f7';
+                e.currentTarget.style.borderColor = '#d0cfc5';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.borderColor = '#e5e4dc';
+              }}
+            >
+              <LogOut size={16} />
+              Logout
+            </button>
+          </div>
         </div>
         <InstitutionDashboard institutionId={applicationStatus.institution_id} />
       </div>
