@@ -116,7 +116,7 @@ export function InstitutionOnboarding() {
       if (!res.ok) throw new Error(data.detail || 'Application failed');
       
       // Redirect to status page
-      router.push('/institution/application-submitted');
+      router.push('/institution');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -137,65 +137,59 @@ export function InstitutionOnboarding() {
       }}>
         {/* Progress Steps */}
         <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginBottom: '40px',
           background: 'white',
-          borderRadius: '16px',
           padding: '24px',
-          marginBottom: '24px',
-          border: '0.5px solid #e5e4dc',
+          borderRadius: '12px',
+          border: '1px solid #e5e4dc',
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            {[
-              { num: 1, label: 'Institution' },
-              { num: 2, label: 'Contact' },
-              { num: 3, label: 'Head Info' },
-              { num: 4, label: 'Package' },
-            ].map((s) => (
-              <div key={s.num} style={{
-                flex: 1,
+          {[
+            { num: 1, label: 'Institution', icon: Building2 },
+            { num: 2, label: 'Contact', icon: User },
+            { num: 3, label: 'Head Info', icon: User },
+            { num: 4, label: 'Package', icon: Package },
+          ].map((s) => (
+            <div key={s.num} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                background: step >= s.num ? '#1D9E75' : '#e5e4dc',
+                color: step >= s.num ? 'white' : '#888780',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
+                justifyContent: 'center',
+                fontWeight: '600',
               }}>
-                <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  background: step >= s.num ? '#1D9E75' : '#e5e4dc',
-                  color: step >= s.num ? 'white' : '#888780',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                }}>
-                  {step > s.num ? <Check size={16} /> : s.num}
-                </div>
-                <span style={{
-                  fontSize: '13px',
-                  color: step >= s.num ? '#2C2C2A' : '#888780',
-                  fontWeight: step === s.num ? '600' : '400',
-                }}>
-                  {s.label}
-                </span>
+                {s.num}
               </div>
-            ))}
-          </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '500', color: step >= s.num ? '#1D9E75' : '#888780' }}>
+                  {s.label}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-        
+
         {/* Form Card */}
         <div style={{
           background: 'white',
-          borderRadius: '16px',
           padding: '32px',
-          border: '0.5px solid #e5e4dc',
+          borderRadius: '12px',
+          border: '1px solid #e5e4dc',
         }}>
+          
+          {/* Error Display */}
           {error && (
             <div style={{
-              padding: '12px 16px',
-              background: '#FEE',
-              border: '1px solid #FCC',
-              borderRadius: '8px',
               marginBottom: '24px',
+              padding: '16px',
+              background: '#FFF4E5',
+              border: '1px solid #FFE0B2',
+              borderRadius: '8px',
               display: 'flex',
               gap: '8px',
               alignItems: 'start',
@@ -377,6 +371,7 @@ export function InstitutionOnboarding() {
                       type="text"
                       value={formData.institutionName}
                       onChange={(e) => setFormData({ ...formData, institutionName: e.target.value })}
+                      placeholder="Enter your institution name"
                       style={{
                         width: '100%',
                         padding: '12px',
@@ -449,6 +444,7 @@ export function InstitutionOnboarding() {
                     type="text"
                     value={formData.contactPersonDesignation}
                     onChange={(e) => setFormData({ ...formData, contactPersonDesignation: e.target.value })}
+                    placeholder="e.g., Dean, Librarian"
                     style={{
                       width: '100%',
                       padding: '12px',
@@ -460,8 +456,159 @@ export function InstitutionOnboarding() {
                 </div>
               </div>
               
-              {/* Address, Email, Phone fields... (truncated for brevity) */}
-              {/* Add all address fields similar to above */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.contactEmail}
+                    onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e5e4dc',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                    Phone *
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.contactPhone}
+                    onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+                    placeholder="+91 XXXXXXXXXX"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e5e4dc',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
+              </div>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                  Address Line 1 *
+                </label>
+                <input
+                  type="text"
+                  value={formData.addressLine1}
+                  onChange={(e) => setFormData({ ...formData, addressLine1: e.target.value })}
+                  placeholder="Street address"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid #e5e4dc',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                  }}
+                />
+              </div>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                  Address Line 2
+                </label>
+                <input
+                  type="text"
+                  value={formData.addressLine2}
+                  onChange={(e) => setFormData({ ...formData, addressLine2: e.target.value })}
+                  placeholder="Apartment, suite, etc. (optional)"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid #e5e4dc',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                  }}
+                />
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                    City *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e5e4dc',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                    State *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.state}
+                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e5e4dc',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                    Postal Code *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.postalCode}
+                    onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e5e4dc',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                    Country
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.country}
+                    disabled
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e5e4dc',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      background: '#f9f9f7',
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           )}
           
@@ -469,45 +616,134 @@ export function InstitutionOnboarding() {
           {step === 3 && (
             <div>
               <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '24px' }}>
-                Head of Institution Details
+                Head of Institution
               </h2>
-              {/* Similar input fields for head details */}
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                    Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.headName}
+                    onChange={(e) => setFormData({ ...formData, headName: e.target.value })}
+                    placeholder="Full name"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e5e4dc',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                    Designation *
+                  </label>
+                  <select
+                    value={formData.headDesignation}
+                    onChange={(e) => setFormData({ ...formData, headDesignation: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e5e4dc',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                    }}
+                  >
+                    <option value="Principal">Principal</option>
+                    <option value="Dean">Dean</option>
+                    <option value="Director">Director</option>
+                    <option value="Vice Chancellor">Vice Chancellor</option>
+                    <option value="Head">Head</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.headEmail}
+                    onChange={(e) => setFormData({ ...formData, headEmail: e.target.value })}
+                    placeholder="official@institution.edu"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e5e4dc',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+                    Phone *
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.headPhone}
+                    onChange={(e) => setFormData({ ...formData, headPhone: e.target.value })}
+                    placeholder="+91 XXXXXXXXXX"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e5e4dc',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           )}
           
           {/* STEP 4: Package Selection */}
           {step === 4 && (
             <div>
-              <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '24px' }}>
+              <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '8px' }}>
                 Choose Your Package
               </h2>
+              <p style={{ fontSize: '14px', color: '#888780', marginBottom: '24px' }}>
+                Select a subscription package for your institution
+              </p>
               
-              <div style={{ display: 'grid', gap: '16px', marginBottom: '24px' }}>
-                {packages.map((pkg) => (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                {packages.map((pkg: any) => (
                   <div
                     key={pkg.id}
-                    onClick={() => setFormData({
-                      ...formData,
-                      packageId: pkg.id,
-                      packageName: pkg.name,
-                    })}
+                    onClick={() => setFormData({ ...formData, packageId: pkg.id, packageName: pkg.name })}
                     style={{
                       padding: '20px',
                       border: formData.packageId === pkg.id ? '2px solid #1D9E75' : '1px solid #e5e4dc',
                       borderRadius: '12px',
                       cursor: 'pointer',
                       background: formData.packageId === pkg.id ? '#E1F5EE' : 'white',
+                      transition: 'all 0.2s',
                     }}
                   >
-                    <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
                       {pkg.name}
-                    </h3>
-                    <p style={{ fontSize: '14px', color: '#888780', marginBottom: '12px' }}>
-                      {pkg.description}
-                    </p>
-                    <div style={{ fontSize: '24px', fontWeight: '700', color: '#1D9E75' }}>
-                      ₹{pkg.price_inr}/month
                     </div>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: '#1D9E75', marginBottom: '12px' }}>
+                      ₹{(pkg.price_inr / 100000).toFixed(2)}L/year
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#888780', marginBottom: '4px' }}>
+                      {pkg.free_users_limit} students included
+                    </div>
+                    {formData.packageId === pkg.id && (
+                      <div style={{ marginTop: '12px', color: '#1D9E75', fontSize: '14px', fontWeight: '500' }}>
+                        ✓ Selected
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -518,8 +754,9 @@ export function InstitutionOnboarding() {
                 </label>
                 <input
                   type="number"
+                  min="1"
                   value={formData.estimatedStudents}
-                  onChange={(e) => setFormData({ ...formData, estimatedStudents: parseInt(e.target.value) })}
+                  onChange={(e) => setFormData({ ...formData, estimatedStudents: parseInt(e.target.value) || 0 })}
                   style={{
                     width: '200px',
                     padding: '12px',
@@ -533,70 +770,56 @@ export function InstitutionOnboarding() {
           )}
           
           {/* Navigation Buttons */}
-          <div style={{
-            marginTop: '32px',
-            display: 'flex',
-            justifyContent: 'space-between',
-          }}>
+          <div style={{ marginTop: '32px', display: 'flex', justifyContent: 'space-between' }}>
             {step > 1 && (
               <button
                 onClick={() => setStep(step - 1)}
+                disabled={loading}
                 style={{
                   padding: '12px 24px',
                   border: '1px solid #e5e4dc',
                   borderRadius: '8px',
                   background: 'white',
-                  cursor: 'pointer',
+                  color: '#888780',
                   fontSize: '14px',
                   fontWeight: '500',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  opacity: loading ? 0.5 : 1,
                 }}
               >
-                Back
+                ← Back
               </button>
             )}
             
-            {step < 4 ? (
-              <button
-                onClick={() => setStep(step + 1)}
-                disabled={
-                  (step === 1 && !formData.selectedCollegeId) ||
-                  (step === 1 && formData.isOther && (!formData.institutionName || !formData.institutionType))
+            <button
+              onClick={() => {
+                if (step < 4) {
+                  setStep(step + 1);
+                } else {
+                  handleSubmit();
                 }
-                style={{
-                  padding: '12px 24px',
-                  border: 'none',
-                  borderRadius: '8px',
-                  background: '#1D9E75',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  marginLeft: 'auto',
-                  opacity: loading ? 0.6 : 1,
-                }}
-              >
-                Continue
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmit}
-                disabled={loading || !formData.packageId}
-                style={{
-                  padding: '12px 32px',
-                  border: 'none',
-                  borderRadius: '8px',
-                  background: '#1D9E75',
-                  color: 'white',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  marginLeft: 'auto',
-                  opacity: loading ? 0.6 : 1,
-                }}
-              >
-                {loading ? 'Submitting...' : 'Submit Application'}
-              </button>
-            )}
+              }}
+              disabled={
+                loading ||
+                (step === 1 && !formData.selectedCollegeId && !formData.isOther) ||
+                (step === 1 && formData.isOther && (!formData.institutionName || !formData.institutionType)) ||
+                (step === 4 && !formData.packageId)
+              }
+              style={{
+                padding: '12px 24px',
+                border: 'none',
+                borderRadius: '8px',
+                background: '#1D9E75',
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.5 : 1,
+                marginLeft: 'auto',
+              }}
+            >
+              {loading ? 'Submitting...' : step === 4 ? 'Submit Application' : 'Continue →'}
+            </button>
           </div>
         </div>
       </div>
