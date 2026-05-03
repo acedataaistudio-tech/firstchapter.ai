@@ -1,6 +1,5 @@
 
 import { useState, useEffect } from 'react';
-import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { Clock, Check, X, Users, Package, Mail, Phone } from 'lucide-react';
 
