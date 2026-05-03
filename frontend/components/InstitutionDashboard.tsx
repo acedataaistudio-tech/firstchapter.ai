@@ -164,7 +164,7 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
                         Current capacity and usage of active students
                       </p>
                     </div>
-                    {mauStatus.usage_percent >= 0 && (
+                    {mauStatus.usage_percent >= 70 && (
                       <button
                         onClick={() => setShowPurchaseModal(true)}
                         style={{
