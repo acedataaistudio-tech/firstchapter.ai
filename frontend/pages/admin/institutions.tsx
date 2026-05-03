@@ -3,6 +3,7 @@ import { useUser } from '@clerk/nextjs';
 import { Clock, Check, X, Users, Package, Mail, Phone } from 'lucide-react';
 
 const API_BASE_URL = 'https://firstchapterai-production.up.railway.app';
+const ADMIN_SECRET = 'firstchapter@admin2026';
 
 export default function PlatformAdminInstitutions() {
   const { user } = useUser();
@@ -16,7 +17,11 @@ export default function PlatformAdminInstitutions() {
 
   const loadApplications = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/institutions/list?status=${filter}`);
+      const res = await fetch(`${API_BASE_URL}/api/admin/institutions/list?status=${filter}`, {
+        headers: {
+          'x-admin-secret': ADMIN_SECRET,
+        },
+      });
       const data = await res.json();
       setApplications(data.institutions || []);
     } catch (err) {
@@ -32,7 +37,10 @@ export default function PlatformAdminInstitutions() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/institutions/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-secret': ADMIN_SECRET,
+        },
         body: JSON.stringify({
           institution_id: institutionId,
           action: 'approve',
@@ -46,8 +54,9 @@ export default function PlatformAdminInstitutions() {
 
       alert('Institution approved and subscription created!');
       loadApplications();
-    } catch (err) {
-      alert('Failed to approve institution');
+    } catch (err: any) {
+      console.error('Approval error:', err);
+      alert(`Failed to approve institution: ${err.message}`);
     }
   };
 
@@ -58,7 +67,10 @@ export default function PlatformAdminInstitutions() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/institutions/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-secret': ADMIN_SECRET,
+        },
         body: JSON.stringify({
           institution_id: institutionId,
           action: 'reject',
@@ -72,8 +84,9 @@ export default function PlatformAdminInstitutions() {
 
       alert('Institution application rejected');
       loadApplications();
-    } catch (err) {
-      alert('Failed to reject institution');
+    } catch (err: any) {
+      console.error('Rejection error:', err);
+      alert(`Failed to reject institution: ${err.message}`);
     }
   };
 
