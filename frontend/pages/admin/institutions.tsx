@@ -63,8 +63,8 @@ export default function PlatformAdminInstitutions() {
         body: JSON.stringify({
           institution_id: institutionId,
           action: 'approve',
-          admin_user_id: user?.id,
-          admin_name: user?.fullName || 'Admin',
+          admin_user_id: 'platform_admin',  // Fixed: hardcoded instead of user?.id
+          admin_name: 'Platform Admin',
           package_id: packageId,
         }),
       });
@@ -93,8 +93,8 @@ export default function PlatformAdminInstitutions() {
         body: JSON.stringify({
           institution_id: institutionId,
           action: 'reject',
-          admin_user_id: user?.id,
-          admin_name: user?.fullName || 'Admin',
+          admin_user_id: 'platform_admin',  // Fixed: hardcoded instead of user?.id
+          admin_name: 'Platform Admin',
           rejection_reason: reason,
         }),
       });
