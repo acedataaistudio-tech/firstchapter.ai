@@ -26,6 +26,7 @@ from api.admin import institutions as admin_institutions
 
 # WebSocket
 from websocket_handler.websocket import router as ws_router
+from api.institution import mau_purchase
 
 logging.basicConfig(level=logging.INFO)
 
@@ -121,6 +122,7 @@ app.include_router(management.router, prefix="/api", tags=["Student Management"]
 app.include_router(notifications.router, prefix="/api", tags=["Notifications"])
 app.include_router(user_sync.router, prefix="/api", tags=["User Sync"])
 app.include_router(admin_institutions.router, prefix="/api/admin/institutions", tags=["Admin Institutions"])
+app.include_router(mau_purchase.router, prefix="/api", tags=["Institution MAU Purchase"])
 
 # WebSocket
 app.include_router(ws_router)
