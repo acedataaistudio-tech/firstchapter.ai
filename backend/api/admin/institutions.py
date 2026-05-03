@@ -72,14 +72,52 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_a
             if not request.package_id:
                 raise HTTPException(status_code=400, detail="package_id required for approval")
             
-            package_result = db.table("packages")\
-                .select("*")\
-                .eq("id", request.package_id)\
-                .single()\
-                .execute()
-            
-            if not package_result.data:
-                raise HTTPException(status_code=404, detail="Package not found")
+            # Try to get package by ID first (UUID), then by name
+            try:
+                package_result = db.table("packages")\
+                    .select("*")\
+                    .eq("id", request.package_id)\
+                    .single()\
+                    .execute()
+                
+                if not package_result.data:
+                    # Not found by UUID, try by name mapping
+                    name_mapping = {
+                        'basic': 'Institution Basic',
+                        'pro': 'Institution Pro', 
+                        'enterprise': 'Institution Enterprise'
+                    }
+                    package_name = name_mapping.get(request.package_id.lower())
+                    if package_name:
+                        package_result = db.table("packages")\
+                            .select("*")\
+                            .eq("name", package_name)\
+                            .eq("type", "institution")\
+                            .single()\
+                            .execute()
+                    
+                    if not package_result.data:
+                        raise HTTPException(status_code=404, detail=f"Package not found: {request.package_id}")
+            except Exception as e:
+                # Try name mapping if UUID lookup fails
+                name_mapping = {
+                    'basic': 'Institution Basic',
+                    'pro': 'Institution Pro',
+                    'enterprise': 'Institution Enterprise'
+                }
+                package_name = name_mapping.get(request.package_id.lower())
+                if not package_name:
+                    raise HTTPException(status_code=404, detail=f"Package not found: {request.package_id}")
+                
+                package_result = db.table("packages")\
+                    .select("*")\
+                    .eq("name", package_name)\
+                    .eq("type", "institution")\
+                    .single()\
+                    .execute()
+                
+                if not package_result.data:
+                    raise HTTPException(status_code=404, detail=f"Package not found: {package_name}")
             
             package = package_result.data
             features = package.get('features', {})
