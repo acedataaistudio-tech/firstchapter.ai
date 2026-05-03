@@ -38,6 +38,7 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
   };
   
   const loadMAUStatus = async () => {
+console.log('🔍 Loading MAU status for institution:', institutionId); 
     try {
       const res = await fetch(`${API_BASE_URL}/api/institution/${institutionId}/mau-status`);
       const result = await res.json();
