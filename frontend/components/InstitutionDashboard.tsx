@@ -162,7 +162,7 @@ console.log('🔍 Loading MAU status for institution:', institutionId);
                         Current capacity and usage of active students
                       </p>
                     </div>
-                    {mauStatus.usage_percent > 70 && (
+                    {mauStatus && (  // Always show for testing
                       <button
                         onClick={() => setShowPurchaseModal(true)}
                         style={{
