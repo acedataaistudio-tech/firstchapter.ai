@@ -163,11 +163,17 @@ def admin_list_users(x_admin_secret: str = Header(...)):
         users = response.json()
         formatted = []
         for u in users:
+            # Check both 'role' and 'userType' in metadata (institutions use userType)
+            unsafe_meta = u.get("unsafe_metadata", {})
+            public_meta = u.get("public_metadata", {})
+            role = (unsafe_meta.get("role") or unsafe_meta.get("userType") or 
+                   public_meta.get("role") or public_meta.get("userType") or "reader")
+            
             formatted.append({
                 "id": u.get("id"),
                 "name": f"{u.get('first_name', '')} {u.get('last_name', '')}".strip() or "Unknown",
                 "email": u.get("email_addresses", [{}])[0].get("email_address", ""),
-                "role": u.get("unsafe_metadata", {}).get("role") or u.get("public_metadata", {}).get("role") or "reader",
+                "role": role,
                 "joined": u.get("created_at", ""),
                 "status": "active" if not u.get("banned") else "suspended",
             })
