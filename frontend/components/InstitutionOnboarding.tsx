@@ -116,6 +116,18 @@ export function InstitutionOnboarding() {
       if (!res.ok) {
         // Log full error for debugging
         console.error('Application error:', data);
+        
+        // Handle array of validation errors
+        if (Array.isArray(data.detail)) {
+          const errorMessages = data.detail.map((err: any) => {
+            if (typeof err === 'object' && err.msg) {
+              return `${err.loc?.join(' → ') || 'Error'}: ${err.msg}`;
+            }
+            return JSON.stringify(err);
+          }).join('\n');
+          throw new Error(errorMessages);
+        }
+        
         throw new Error(data.detail || JSON.stringify(data) || 'Application failed');
       }
       
@@ -200,7 +212,7 @@ export function InstitutionOnboarding() {
               alignItems: 'start',
             }}>
               <AlertCircle size={18} style={{ color: '#C00', flexShrink: 0, marginTop: '2px' }} />
-              <span style={{ fontSize: '14px', color: '#800' }}>{error}</span>
+              <div style={{ fontSize: '14px', color: '#800', whiteSpace: 'pre-wrap' }}>{error}</div>
             </div>
           )}
           
