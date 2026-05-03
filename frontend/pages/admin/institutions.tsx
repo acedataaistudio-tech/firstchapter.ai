@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
+import { useRouter } from 'next/router';
 import { Clock, Check, X, Users, Package, Mail, Phone } from 'lucide-react';
 
 const API_BASE_URL = 'https://firstchapterai-production.up.railway.app';
@@ -8,9 +9,26 @@ const ADMIN_SECRET = 'firstchapter@admin2026';
 
 export default function PlatformAdminInstitutions() {
   const { user } = useUser();
+  const router = useRouter();
+  
+  // Authentication
+  const [authenticated, setAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+  
+  // Data
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending');
+
+  const handleLogin = () => {
+    if (password === ADMIN_SECRET) {
+      setAuthenticated(true);
+      setPasswordError(false);
+    } else {
+      setPasswordError(true);
+    }
+  };
 
   useEffect(() => {
     loadApplications();
@@ -92,6 +110,108 @@ export default function PlatformAdminInstitutions() {
   };
 
   return (
+    <>
+      {/* Password Login Screen */}
+      {!authenticated ? (
+        <div style={{ 
+          minHeight: '100vh', 
+          background: '#f9f9f7', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          fontFamily: "'DM Sans', sans-serif"
+        }}>
+          <div style={{ width: '380px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+              <h1 style={{ 
+                fontFamily: "'DM Serif Display', serif", 
+                fontSize: '28px', 
+                color: '#2C2C2A', 
+                margin: '0 0 8px' 
+              }}>
+                First<span style={{ color: '#1D9E75' }}>chapter</span>
+              </h1>
+              <p style={{ fontSize: '14px', color: '#888780', margin: 0 }}>
+                Admin access only
+              </p>
+            </div>
+            
+            <div style={{ 
+              background: 'white', 
+              border: '0.5px solid #e5e4dc', 
+              borderRadius: '16px', 
+              padding: '32px' 
+            }}>
+              <p style={{ 
+                fontSize: '14px', 
+                fontWeight: '500', 
+                color: '#2C2C2A', 
+                margin: '0 0 20px' 
+              }}>
+                Enter admin password
+              </p>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <input 
+                  type="password" 
+                  placeholder="Admin password" 
+                  value={password}
+                  onChange={e => { setPassword(e.target.value); setPasswordError(false); }}
+                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                  style={{ 
+                    width: '100%',
+                    padding: '12px',
+                    border: passwordError ? '1px solid #E24B4A' : '0.5px solid #e5e4dc',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontFamily: "'DM Sans', sans-serif"
+                  }} 
+                />
+                {passwordError && (
+                  <p style={{ fontSize: '12px', color: '#E24B4A', margin: '6px 0 0' }}>
+                    Incorrect password.
+                  </p>
+                )}
+              </div>
+              
+              <button 
+                onClick={handleLogin} 
+                style={{ 
+                  width: '100%', 
+                  background: '#2C2C2A', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '100px', 
+                  padding: '13px', 
+                  fontSize: '14px', 
+                  fontWeight: '500', 
+                  cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif"
+                }}
+              >
+                Access admin dashboard →
+              </button>
+              
+              <button 
+                onClick={() => router.push('/')} 
+                style={{ 
+                  width: '100%', 
+                  background: 'none', 
+                  border: 'none', 
+                  color: '#888780', 
+                  fontSize: '13px', 
+                  cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif",
+                  marginTop: '12px'
+                }}
+              >
+                ← Back to platform
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Main Admin Content */
     <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
       <div style={{ marginBottom: '24px' }}>
         <h1 style={{ fontSize: '28px', fontWeight: '700', marginBottom: '8px' }}>
@@ -264,5 +384,7 @@ export default function PlatformAdminInstitutions() {
         </div>
       )}
     </div>
+      )}
+    </>
   );
 }
