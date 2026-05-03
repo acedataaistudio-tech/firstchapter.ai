@@ -11,7 +11,7 @@ export function InstitutionOnboarding() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  // College search state
+  // Search state
   const [collegeSearch, setCollegeSearch] = useState('');
   const [showResults, setShowResults] = useState(false);
   const [selectedDisplay, setSelectedDisplay] = useState('');
