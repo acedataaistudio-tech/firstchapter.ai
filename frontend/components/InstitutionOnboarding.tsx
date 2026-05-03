@@ -96,19 +96,44 @@ export function InstitutionOnboarding() {
     setError('');
     
     try {
+      // Map camelCase to snake_case for backend
+      const payload = {
+        clerk_user_id: user?.id,
+        admin_name: formData.contactPersonName,
+        admin_email: formData.contactEmail,
+        college_id: formData.isOther ? null : formData.selectedCollegeId,
+        is_other: formData.isOther,
+        institution_name: formData.institutionName,
+        institution_type: formData.institutionType,
+        
+        // Contact fields (snake_case)
+        address_line1: formData.addressLine1,
+        address_line2: formData.addressLine2,
+        city: formData.city,
+        state: formData.state,
+        postal_code: formData.postalCode,
+        country: formData.country,
+        contact_email: formData.contactEmail,
+        contact_phone: formData.contactPhone,
+        contact_person_name: formData.contactPersonName,
+        contact_person_designation: formData.contactPersonDesignation,
+        
+        // Head fields (snake_case)
+        head_name: formData.headName,
+        head_email: formData.headEmail,
+        head_phone: formData.headPhone,
+        head_designation: formData.headDesignation,
+        
+        // Package fields (snake_case)
+        package_id: formData.packageId,
+        package_name: formData.packageName,
+        estimated_students: formData.estimatedStudents,
+      };
+      
       const res = await fetch('https://firstchapterai-production.up.railway.app/api/institution/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clerk_user_id: user?.id,
-          admin_name: formData.contactPersonName,
-          admin_email: formData.contactEmail,
-          college_id: formData.isOther ? null : formData.selectedCollegeId,
-          is_other: formData.isOther,
-          institution_name: formData.institutionName,
-          institution_type: formData.institutionType,
-          ...formData,
-        }),
+        body: JSON.stringify(payload),
       });
       
       const data = await res.json();
