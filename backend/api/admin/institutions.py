@@ -156,7 +156,7 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_a
             subscription_data = {
                 "id": str(uuid.uuid4()),
                 "institution_id": request.institution_id,
-                "package_id": request.package_id,
+                "package_id": package['id'],  # ← Use actual UUID from package!
                 "package_name": package['name'],
                 "type": "institution",
                 "is_active": True,
