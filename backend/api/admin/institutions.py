@@ -179,9 +179,9 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_a
                 "allow_concurrent_requests": False,
                 "quota_alerts_enabled": True,
                 
-                # Subscription period
+                # Subscription period (1 year for institutional packages)
                 "start_date": datetime.utcnow().date().isoformat(),
-                "end_date": None,  # Will be set based on payment
+                "end_date": (datetime.utcnow().date().replace(year=datetime.utcnow().year + 1)).isoformat(),
                 "payment_status": "pending",
                 
                 "created_at": datetime.utcnow().isoformat(),
