@@ -9,6 +9,45 @@ from typing import Optional
 
 router = APIRouter()
 
+@router.get("/colleges")
+async def get_colleges():
+    """
+    Get all colleges for dropdown/selection.
+    Used by frontend InstitutionOnboarding.
+    """
+    from database.crud import get_db
+    db = get_db()
+    
+    try:
+        # Fetch all colleges
+        colleges = db.table("colleges")\
+            .select("id, name, location, code, institution_type")\
+            .order("name")\
+            .execute()
+        
+        if not colleges.data:
+            return {"colleges": []}
+        
+        # Return simple list for frontend
+        return {
+            "colleges": [
+                {
+                    "id": c["id"],
+                    "name": c["name"],
+                    "location": c.get("location", ""),
+                    "code": c.get("code", ""),
+                    "type": c.get("institution_type", ""),
+                    "display_name": f"{c['name']}, {c.get('location', '')}"
+                }
+                for c in colleges.data
+            ]
+        }
+    
+    except Exception as e:
+        print(f"Error fetching colleges: {e}")
+        return {"colleges": []}
+
+
 @router.get("/colleges/list")
 async def get_colleges_list():
     """
