@@ -38,13 +38,15 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
   };
   
   const loadMAUStatus = async () => {
-console.log('🔍 Loading MAU status for institution:', institutionId); 
+    console.log('🔍 Loading MAU status for institution:', institutionId); 
     try {
       const res = await fetch(`${API_BASE_URL}/api/institution/${institutionId}/mau-status`);
       const result = await res.json();
+      console.log('✅ MAU Status loaded:', result);
+      console.log('📊 Usage Percent:', result?.usage_percent);
       setMauStatus(result);
     } catch (err) {
-      console.error('Failed to load MAU status:', err);
+      console.error('❌ Failed to load MAU status:', err);
     }
   };
   
@@ -162,7 +164,7 @@ console.log('🔍 Loading MAU status for institution:', institutionId);
                         Current capacity and usage of active students
                       </p>
                     </div>
-                    {mauStatus.usage_percent > 70 && (
+                    {mauStatus.usage_percent >= 0 && (
                       <button
                         onClick={() => setShowPurchaseModal(true)}
                         style={{
