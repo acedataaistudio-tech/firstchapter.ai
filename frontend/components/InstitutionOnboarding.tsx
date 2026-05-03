@@ -54,8 +54,9 @@ export function InstitutionOnboarding() {
   
   const loadColleges = async () => {
     try {
-      const res = await fetch('/api/colleges/list');
+      const res = await fetch('https://firstchapterai-production.up.railway.app/api/colleges/list');
       const data = await res.json();
+      console.log('Loaded colleges:', data); // Debug log
       setColleges(data.colleges || {});
     } catch (err) {
       console.error('Failed to load colleges:', err);
@@ -64,7 +65,7 @@ export function InstitutionOnboarding() {
   
   const loadPackages = async () => {
     try {
-      const res = await fetch('/api/packages?tier=institution');
+      const res = await fetch('https://firstchapterai-production.up.railway.app/api/packages?tier=institution');
       const data = await res.json();
       setPackages(data.packages || []);
     } catch (err) {
@@ -77,7 +78,7 @@ export function InstitutionOnboarding() {
     setError('');
     
     try {
-      const res = await fetch('/api/institution/apply', {
+      const res = await fetch('https://firstchapterai-production.up.railway.app/api/institution/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
