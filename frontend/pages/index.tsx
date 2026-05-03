@@ -29,9 +29,9 @@ function LandingPage() {
   }, []);
 
   const signInOptions = [
-    { label: "Reader",      icon: "📚", path: "/sign-in?role=reader"      },
+    { label: "Reader",      icon: "📚", path: "/sign-in"                 },
     { label: "Publisher",   icon: "✍️", path: "/sign-in?role=publisher"   },
-    { label: "Institution", icon: "🏛️", path: "/sign-in?role=institution" },
+    { label: "Institution", icon: "🏛️", path: "/institution/sign-in"      },
   ];
 
   const roles = [
@@ -60,7 +60,7 @@ function LandingPage() {
       cta:         "Get institution access",
       color:       "#378ADD",
       bg:          "#E6F1FB",
-      path:        "/institution-signup",
+      path:        "/institution/sign-up",
     },
   ];
 
