@@ -164,17 +164,42 @@ async def get_institution_dashboard(institution_id: str):
                 "full_name": inst.get("full_name"),
                 "type": inst.get("type"),
                 "is_active": inst.get("is_active"),
+                # Address
+                "city": inst.get("city"),
+                "state": inst.get("state"),
+                "address_line1": inst.get("address_line1"),
+                "address_line2": inst.get("address_line2"),
+                "postal_code": inst.get("postal_code"),
+                "country": inst.get("country"),
+                # Contact Person
                 "contact_email": inst.get("contact_email"),
+                "contact_phone": inst.get("contact_phone"),
+                "contact_person_name": inst.get("contact_person_name"),
+                "contact_person_designation": inst.get("contact_person_designation"),
+                # Head of Institution
+                "head_name": inst.get("head_name"),
+                "head_email": inst.get("head_email"),
+                "head_phone": inst.get("head_phone"),
+                "head_designation": inst.get("head_designation"),
             },
             "subscription": {
                 "package_name": sub_data.get("package_name") if sub_data else None,
+                # Total usage
                 "total_allocated": total_allocated,
                 "total_used": total_used,
                 "usage_percent": round(usage_percent, 1),
+                # Token details (with both naming conventions)
+                "input_tokens_allocated": input_allocated if sub_data else 0,
+                "output_tokens_allocated": output_allocated if sub_data else 0,
+                "input_tokens_used": input_used if sub_data else 0,
+                "output_tokens_used": output_used if sub_data else 0,
+                # Legacy names for compatibility
                 "input_allocated": input_allocated if sub_data else 0,
                 "output_allocated": output_allocated if sub_data else 0,
                 "input_used": input_used if sub_data else 0,
                 "output_used": output_used if sub_data else 0,
+                # Additional fields
+                "free_users_limit": sub_data.get("free_users_limit", 0) if sub_data else 0,
                 "start_date": sub_data.get("start_date") if sub_data else None,
                 "end_date": sub_data.get("end_date") if sub_data else None,
                 "is_active": sub_data.get("is_active") if sub_data else False,
