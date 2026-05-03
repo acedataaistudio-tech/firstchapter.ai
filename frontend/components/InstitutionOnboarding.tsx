@@ -11,6 +11,11 @@ export function InstitutionOnboarding() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
+  // Search state for colleges
+  const [collegeSearch, setCollegeSearch] = useState('');
+  const [showCollegeDropdown, setShowCollegeDropdown] = useState(false);
+  const [selectedCollegeName, setSelectedCollegeName] = useState('');
+  
   // Form state
   const [formData, setFormData] = useState({
     // Step 1: College selection
@@ -52,11 +57,27 @@ export function InstitutionOnboarding() {
     loadPackages();
   }, []);
   
+  // Filter colleges based on search
+  const getFilteredColleges = () => {
+    if (!collegeSearch) return [];
+    
+    const filtered: any[] = [];
+    Object.entries(colleges).forEach(([type, items]: [string, any]) => {
+      items.forEach((college: any) => {
+        if (college.display_name.toLowerCase().includes(collegeSearch.toLowerCase())) {
+          filtered.push({ ...college, type });
+        }
+      });
+    });
+    
+    return filtered.slice(0, 10); // Show max 10 results
+  };
+  
   const loadColleges = async () => {
     try {
       const res = await fetch('https://firstchapterai-production.up.railway.app/api/colleges/list');
       const data = await res.json();
-      console.log('Loaded colleges:', data); // Debug log
+      console.log('Loaded colleges:', data);
       setColleges(data.colleges || {});
     } catch (err) {
       console.error('Failed to load colleges:', err);
@@ -198,20 +219,24 @@ export function InstitutionOnboarding() {
               </p>
               
               {/* College Dropdown */}
-              <div style={{ marginBottom: '24px' }}>
+              <div style={{ marginBottom: '24px', position: 'relative' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
                   Select College/University
                 </label>
-                <select
-                  value={formData.selectedCollegeId}
+                
+                {/* Searchable Input */}
+                <input
+                  type="text"
+                  placeholder="Type to search colleges..."
+                  value={formData.isOther ? 'Other (Not in list)' : (selectedCollegeName || collegeSearch)}
                   onChange={(e) => {
-                    const value = e.target.value;
-                    setFormData({
-                      ...formData,
-                      selectedCollegeId: value,
-                      isOther: value === 'other',
-                    });
+                    setCollegeSearch(e.target.value);
+                    setShowCollegeDropdown(true);
+                    setFormData({ ...formData, selectedCollegeId: '', isOther: false });
+                    setSelectedCollegeName('');
                   }}
+                  onFocus={() => setShowCollegeDropdown(true)}
+                  disabled={formData.isOther}
                   style={{
                     width: '100%',
                     padding: '12px',
@@ -219,19 +244,119 @@ export function InstitutionOnboarding() {
                     borderRadius: '8px',
                     fontSize: '14px',
                   }}
-                >
-                  <option value="">-- Select Institution --</option>
-                  {Object.entries(colleges).map(([type, items]: [string, any]) => (
-                    <optgroup key={type} label={type}>
-                      {items.map((college: any) => (
-                        <option key={college.id} value={college.id}>
-                          {college.display_name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                  <option value="other">Other (Not in list)</option>
-                </select>
+                />
+                
+                {/* Dropdown Results */}
+                {showCollegeDropdown && !formData.isOther && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    background: 'white',
+                    border: '1px solid #e5e4dc',
+                    borderRadius: '8px',
+                    marginTop: '4px',
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    zIndex: 100,
+                  }}>
+                    {collegeSearch && getFilteredColleges().length > 0 ? (
+                      <>
+                        {getFilteredColleges().map((college: any) => (
+                          <div
+                            key={college.id}
+                            onClick={() => {
+                              setFormData({
+                                ...formData,
+                                selectedCollegeId: college.id,
+                                isOther: false,
+                              });
+                              setSelectedCollegeName(college.display_name);
+                              setCollegeSearch('');
+                              setShowCollegeDropdown(false);
+                            }}
+                            style={{
+                              padding: '12px',
+                              borderBottom: '1px solid #f0efea',
+                              cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#f9f9f7'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                          >
+                            <div style={{ fontSize: '14px', fontWeight: '500' }}>{college.name}</div>
+                            <div style={{ fontSize: '12px', color: '#888780' }}>{college.location}</div>
+                            <div style={{ fontSize: '11px', color: '#1D9E75', marginTop: '2px' }}>{college.type}</div>
+                          </div>
+                        ))}
+                        <div
+                          onClick={() => {
+                            setFormData({ ...formData, selectedCollegeId: '', isOther: true });
+                            setSelectedCollegeName('');
+                            setCollegeSearch('');
+                            setShowCollegeDropdown(false);
+                          }}
+                          style={{
+                            padding: '12px',
+                            cursor: 'pointer',
+                            borderTop: '2px solid #e5e4dc',
+                            background: '#f9f9f7',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#f0efea'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = '#f9f9f7'}
+                        >
+                          <div style={{ fontSize: '14px', fontWeight: '500', color: '#378ADD' }}>
+                            ➕ Other (Not in list)
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#888780' }}>Enter college name manually</div>
+                        </div>
+                      </>
+                    ) : collegeSearch ? (
+                      <div style={{ padding: '12px', textAlign: 'center', color: '#888780' }}>
+                        No colleges found. Try different search terms or select "Other".
+                      </div>
+                    ) : (
+                      <div style={{ padding: '12px', textAlign: 'center', color: '#888780' }}>
+                        Start typing to search 422 colleges...
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Selected College Display */}
+                {selectedCollegeName && !formData.isOther && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '8px 12px',
+                    background: '#E1F5EE',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: '#0F6E56',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}>
+                    <span>✓ {selectedCollegeName}</span>
+                    <button
+                      onClick={() => {
+                        setFormData({ ...formData, selectedCollegeId: '', isOther: false });
+                        setSelectedCollegeName('');
+                        setCollegeSearch('');
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#0F6E56',
+                        cursor: 'pointer',
+                        fontSize: '18px',
+                        padding: '0 4px',
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
               </div>
               
               {/* Manual Entry */}
