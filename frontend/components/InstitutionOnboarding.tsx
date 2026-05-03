@@ -113,11 +113,16 @@ export function InstitutionOnboarding() {
       
       const data = await res.json();
       
-      if (!res.ok) throw new Error(data.detail || 'Application failed');
+      if (!res.ok) {
+        // Log full error for debugging
+        console.error('Application error:', data);
+        throw new Error(data.detail || JSON.stringify(data) || 'Application failed');
+      }
       
       // Redirect to status page
       router.push('/institution');
     } catch (err: any) {
+      console.error('Submit error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -717,7 +722,9 @@ export function InstitutionOnboarding() {
               </p>
               
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                {packages.map((pkg: any) => (
+                {packages
+                  .filter((pkg: any) => pkg.type === 'institution')
+                  .map((pkg: any) => (
                   <div
                     key={pkg.id}
                     onClick={() => setFormData({ ...formData, packageId: pkg.id, packageName: pkg.name })}
@@ -734,10 +741,10 @@ export function InstitutionOnboarding() {
                       {pkg.name}
                     </div>
                     <div style={{ fontSize: '24px', fontWeight: '700', color: '#1D9E75', marginBottom: '12px' }}>
-                      ₹{(pkg.price_inr / 100000).toFixed(2)}L/year
+                      ₹{(pkg.price_yearly / 100000).toFixed(2)}L/year
                     </div>
                     <div style={{ fontSize: '13px', color: '#888780', marginBottom: '4px' }}>
-                      {pkg.free_users_limit} students included
+                      {pkg.features?.free_mau || 0} students included
                     </div>
                     {formData.packageId === pkg.id && (
                       <div style={{ marginTop: '12px', color: '#1D9E75', fontSize: '14px', fontWeight: '500' }}>
