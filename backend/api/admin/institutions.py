@@ -62,7 +62,17 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_a
     - Creates subscription with token allocation from package
     - Sends notification to institution admin
     """
-    verify_admin(x_admin_secret)
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Approve request received: action={request.action}, institution_id={request.institution_id}")
+    
+    try:
+        verify_admin(x_admin_secret)
+    except HTTPException as e:
+        logger.error(f"Admin verification failed: {e.detail}")
+        raise
+    
     from database.crud import get_db
     db = get_db()
     
@@ -242,5 +252,5 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_a
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error processing institution approval: {e}")
+        logger.error(f"Error processing institution approval: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
