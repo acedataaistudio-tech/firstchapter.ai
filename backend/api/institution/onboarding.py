@@ -1,12 +1,13 @@
 """
 Institution Onboarding API
 Handles institution applications, college selection, and approval workflow
+UPDATED: Now includes auto-sync to client_colleges table
 """
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 
 router = APIRouter()
@@ -68,6 +69,82 @@ class InstitutionApprovalRequest(BaseModel):
     tokens_allocated: Optional[int] = None
 
 # ══════════════════════════════════════════════════════════════════
+# HELPER FUNCTIONS
+# ══════════════════════════════════════════════════════════════════
+
+def sync_to_client_colleges(db, institution_id: str, subscription_id: str):
+    """
+    ✨ NEW: Auto-sync approved institution to client_colleges table
+    
+    This creates/updates the client_colleges record when an institution
+    gets approved and receives a subscription.
+    
+    Args:
+        db: Database connection
+        institution_id: UUID of institution
+        subscription_id: UUID of subscription
+    """
+    try:
+        # Get institution details
+        institution = db.table("institutions")\
+            .select("*")\
+            .eq("id", institution_id)\
+            .single()\
+            .execute()
+        
+        if not institution.data:
+            print(f"⚠️ Institution {institution_id} not found for sync")
+            return
+        
+        inst = institution.data
+        
+        # Check if already in client_colleges
+        existing = db.table("client_colleges")\
+            .select("id")\
+            .eq("institution_id", institution_id)\
+            .execute()
+        
+        client_college_data = {
+            "institution_id": institution_id,
+            "institution_name": inst["name"],
+            "institution_type": inst.get("type", "college"),
+            "subscription_id": subscription_id,
+            "is_client": True,
+            "is_active": True,
+            
+            # Contact info
+            "contact_email": inst.get("contact_email"),
+            "contact_phone": inst.get("contact_phone"),
+            "contact_person": inst.get("contact_person_name"),
+            
+            # Address
+            "city": inst.get("city"),
+            "state": inst.get("state"),
+            "country": inst.get("country", "India"),
+            
+            # Metadata
+            "synced_at": datetime.utcnow().isoformat(),
+        }
+        
+        if existing.data and len(existing.data) > 0:
+            # Update existing record
+            db.table("client_colleges")\
+                .update(client_college_data)\
+                .eq("institution_id", institution_id)\
+                .execute()
+            print(f"✅ Updated client_colleges for {inst['name']}")
+        else:
+            # Insert new record
+            db.table("client_colleges")\
+                .insert(client_college_data)\
+                .execute()
+            print(f"✅ Synced {inst['name']} to client_colleges")
+        
+    except Exception as e:
+        print(f"❌ Error syncing to client_colleges: {e}")
+        # Don't fail the approval if sync fails - just log it
+
+# ══════════════════════════════════════════════════════════════════
 # ENDPOINTS
 # ══════════════════════════════════════════════════════════════════
 
@@ -83,7 +160,7 @@ async def get_colleges_list():
     try:
         # Get all colleges, grouped by type
         colleges = db.table("colleges")\
-            .select("id, name, institution_type, location")\
+            .select("id, name, institution_type, city, state, location")\
             .order("institution_type, name")\
             .execute()
         
@@ -202,22 +279,22 @@ async def submit_institution_application(request: InstitutionOnboardingRequest):
         institution_id = result.data[0]["id"]
         
         # Create notification for platform admins
-        # TODO: Get platform admin user IDs
-        # For now, log to activity table
-        
-        # Log platform admin action needed
-        db.rpc("create_notification", {
-            "p_user_id": "platform_admin",  # TODO: Actual admin IDs
-            "p_user_role": "platform_admin",
-            "p_type": "institution_application",
-            "p_title": "🏛️ New Institution Application",
-            "p_message": f"{institution_name} has submitted an application for review.",
-            "p_action_url": f"/admin/institutions/{institution_id}",
-            "p_action_label": "Review Application",
-            "p_priority": "high",
-            "p_related_entity_type": "institution",
-            "p_related_entity_id": institution_id
-        }).execute()
+        try:
+            db.rpc("create_notification", {
+                "p_user_id": "platform_admin",  # TODO: Actual admin IDs
+                "p_user_role": "platform_admin",
+                "p_type": "institution_application",
+                "p_title": "🏛️ New Institution Application",
+                "p_message": f"{institution_name} has submitted an application for review.",
+                "p_action_url": f"/admin/institutions/{institution_id}",
+                "p_action_label": "Review Application",
+                "p_priority": "high",
+                "p_related_entity_type": "institution",
+                "p_related_entity_id": institution_id
+            }).execute()
+        except:
+            # Notification failure shouldn't block application
+            pass
         
         return {
             "success": True,
@@ -273,6 +350,8 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest):
     """
     Platform admin endpoint to approve/reject institution application.
     Creates subscription if approved.
+    
+    ✨ UPDATED: Now syncs to client_colleges automatically
     """
     from database.crud import get_db
     db = get_db()
@@ -304,6 +383,8 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest):
                 "is_verified": True,
             }).eq("id", request.institution_id).execute()
             
+            subscription_id = None
+            
             # Create subscription
             if request.package_id and request.tokens_allocated:
                 # Get package details
@@ -318,7 +399,11 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest):
                     input_tokens = int(request.tokens_allocated * 0.34)
                     output_tokens = int(request.tokens_allocated * 0.66)
                     
-                    db.table("subscriptions").insert({
+                    # Calculate end date (1 year from now)
+                    start_date = datetime.utcnow()
+                    end_date = start_date + timedelta(days=365)
+                    
+                    sub_result = db.table("subscriptions").insert({
                         "institution_id": request.institution_id,
                         "institution_name": inst["name"],
                         "package_id": request.package_id,
@@ -329,11 +414,18 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest):
                         "output_tokens_used": 0,
                         "total_students": inst.get("estimated_students", 0),
                         "is_active": True,
-                        "start_date": datetime.utcnow().isoformat(),
+                        "start_date": start_date.isoformat(),
+                        "end_date": end_date.isoformat(),
                         # Trial mode for 30 days
-                        "trial_mode_until": (datetime.utcnow().replace(day=datetime.utcnow().day + 30)).isoformat(),
+                        "trial_mode_until": (start_date + timedelta(days=30)).isoformat(),
                         "trial_mode_active": True,
                     }).execute()
+                    
+                    if sub_result.data and len(sub_result.data) > 0:
+                        subscription_id = sub_result.data[0]["id"]
+                        
+                        # ✨ NEW: Auto-sync to client_colleges
+                        sync_to_client_colleges(db, request.institution_id, subscription_id)
             
             # Log admin action
             db.table("platform_admin_actions").insert({
@@ -345,7 +437,8 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest):
                 "entity_id": request.institution_id,
                 "details": {
                     "package_id": request.package_id,
-                    "tokens_allocated": request.tokens_allocated
+                    "tokens_allocated": request.tokens_allocated,
+                    "subscription_id": subscription_id
                 }
             }).execute()
             
@@ -377,8 +470,6 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest):
             }).execute()
             
             message = f"Institution {inst['name']} application has been rejected."
-        
-        # Notification trigger will fire automatically from database trigger
         
         return {
             "success": True,
