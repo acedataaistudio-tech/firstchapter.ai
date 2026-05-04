@@ -153,6 +153,8 @@ async def get_colleges_list():
     """
     Get list of pre-defined colleges for selection dropdown.
     Returns master list from colleges table.
+    
+    Used for: Institution registration (admin applying for their college)
     """
     from database.crud import get_db
     db = get_db()
@@ -185,6 +187,79 @@ async def get_colleges_list():
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch colleges: {str(e)}")
+
+@router.get("/colleges/client-list")
+async def get_client_colleges_for_readers():
+    """
+    ✨ NEW: Get all active client colleges for READER registration.
+    
+    Returns only institutions that:
+    - Are approved clients (in client_colleges table)
+    - Have active subscriptions
+    - Have available token quota
+    
+    Used for: Reader onboarding at firstchapter.ai/reader-onboarding
+    Students can only join institutions that are active clients.
+    
+    Includes:
+    - Master list colleges that became clients
+    - Custom "Other" colleges that got approved
+    """
+    from database.crud import get_db
+    db = get_db()
+    
+    try:
+        # Fetch all active client colleges
+        client_colleges = db.table("client_colleges")\
+            .select("institution_id, institution_name, institution_type, city, state, subscription_id")\
+            .eq("is_client", True)\
+            .eq("is_active", True)\
+            .order("institution_name")\
+            .execute()
+        
+        if not client_colleges.data:
+            return {
+                "colleges": [],
+                "total_count": 0,
+                "message": "No active client colleges found"
+            }
+        
+        # Format for dropdown
+        colleges_list = []
+        for college in client_colleges.data:
+            # Build display name with location
+            display_parts = [college.get("institution_name", "Unknown")]
+            if college.get("city"):
+                display_parts.append(college.get("city"))
+            if college.get("state"):
+                display_parts.append(college.get("state"))
+            
+            colleges_list.append({
+                "institution_id": college["institution_id"],
+                "name": college["institution_name"],
+                "type": college.get("institution_type", "College"),
+                "city": college.get("city"),
+                "state": college.get("state"),
+                "display_name": ", ".join(display_parts),
+                "subscription_id": college.get("subscription_id")
+            })
+        
+        # Optional: Group by type for better UX
+        grouped = {}
+        for college in colleges_list:
+            college_type = college.get("type", "Other")
+            if college_type not in grouped:
+                grouped[college_type] = []
+            grouped[college_type].append(college)
+        
+        return {
+            "colleges": colleges_list,  # Flat list
+            "colleges_grouped": grouped,  # Grouped by type
+            "total_count": len(colleges_list)
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch client colleges: {str(e)}")
 
 @router.post("/institution/apply")
 async def submit_institution_application(request: InstitutionOnboardingRequest):
