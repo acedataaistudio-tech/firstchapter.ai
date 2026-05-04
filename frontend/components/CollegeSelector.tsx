@@ -42,7 +42,7 @@ export function CollegeSelector({ onSelect, selectedCollege }: CollegeSelectorPr
   const fetchColleges = async () => {
     try {
       // ✨ UPDATED: Now fetches ONLY active client colleges
-      const response = await fetch('/api/institution/colleges/client-list');
+      const response = await fetch('/api/colleges/client-list');
       const data = await response.json();
       
       // Map the response to our College interface
