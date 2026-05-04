@@ -1,7 +1,11 @@
 /**
  * College Selector Component
  * 
- * Searchable dropdown with 500+ colleges for reader onboarding
+ * ✨ UPDATED: Now shows ONLY active client colleges
+ * - Includes master list colleges that are clients
+ * - Includes custom colleges that got approved
+ * - All shown colleges have active subscriptions
+ * 
  * Shows during sign-up to link users to their institution
  */
 
@@ -15,7 +19,7 @@ interface College {
   name: string;
   location: string;
   state: string;
-  type: 'government' | 'private' | 'deemed';
+  type: string;
   has_subscription: boolean;
 }
 
@@ -37,9 +41,23 @@ export function CollegeSelector({ onSelect, selectedCollege }: CollegeSelectorPr
 
   const fetchColleges = async () => {
     try {
-      const response = await fetch('/api/colleges');
+      // ✨ UPDATED: Now fetches ONLY active client colleges
+      const response = await fetch('/api/institution/colleges/client-list');
       const data = await response.json();
-      setColleges(data.colleges || []);
+      
+      // Map the response to our College interface
+      const mappedColleges = (data.colleges || []).map((college: any) => ({
+        id: college.institution_id,
+        name: college.name,
+        location: college.city || '',
+        state: college.state || '',
+        type: college.type || 'College',
+        has_subscription: true, // All colleges from this endpoint have subscriptions
+      }));
+      
+      setColleges(mappedColleges);
+      
+      console.log(`✅ Loaded ${mappedColleges.length} active client colleges`);
     } catch (error) {
       console.error('Failed to fetch colleges:', error);
     } finally {
@@ -65,10 +83,11 @@ export function CollegeSelector({ onSelect, selectedCollege }: CollegeSelectorPr
     const groups: Record<string, College[]> = {};
     
     filteredColleges.forEach((college) => {
-      if (!groups[college.state]) {
-        groups[college.state] = [];
+      const state = college.state || 'Other';
+      if (!groups[state]) {
+        groups[state] = [];
       }
-      groups[college.state].push(college);
+      groups[state].push(college);
     });
 
     return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
@@ -171,7 +190,9 @@ export function CollegeSelector({ onSelect, selectedCollege }: CollegeSelectorPr
                 <div className="text-center py-8">
                   <p className="text-gray-500">No colleges found</p>
                   <p className="text-sm text-gray-400 mt-2">
-                    Try a different search term
+                    {search.trim() 
+                      ? 'Try a different search term' 
+                      : 'No active client colleges available at this time'}
                   </p>
                 </div>
               ) : (
