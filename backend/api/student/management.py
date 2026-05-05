@@ -222,6 +222,40 @@ async def approve_or_reject_student(request: StudentApprovalRequest):
                 "access_granted_at": datetime.utcnow().isoformat(),
             }).eq("id", request.student_id).execute()
             
+            # ✨ NEW: Update users table with institution_id
+            try:
+                # Check if user exists in users table
+                user_check = db.table("users")\
+                    .select("id")\
+                    .eq("id", student_data["user_id"])\
+                    .execute()
+                
+                if user_check.data and len(user_check.data) > 0:
+                    # Update existing user
+                    db.table("users").update({
+                        "institution_id": student_data["institution_id"],
+                        "role": "reader",
+                        "plan_type": "institution",
+                        "updated_at": datetime.utcnow().isoformat()
+                    }).eq("id", student_data["user_id"]).execute()
+                    print(f"✅ Linked user {student_data['user_id']} to institution {student_data['institution_id']}")
+                else:
+                    # Create user record if doesn't exist
+                    db.table("users").insert({
+                        "id": student_data["user_id"],
+                        "email": student_data["student_email"],
+                        "institution_id": student_data["institution_id"],
+                        "role": "reader",
+                        "plan_type": "institution",
+                        "queries_used": 0,
+                        "queries_limit": 999999,  # Institution subscription
+                        "created_at": datetime.utcnow().isoformat()
+                    }).execute()
+                    print(f"✅ Created user record with institution link for {student_data['user_id']}")
+            except Exception as e:
+                print(f"⚠️ Failed to update users table: {e}")
+                # Don't fail approval if users table update fails
+            
             # Add student to institution_users table (for token tracking)
             # Get institution subscription to calculate student allocation
             subscription = db.table("subscriptions")\

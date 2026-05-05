@@ -107,12 +107,37 @@ export default function ReaderOnboarding() {
 
       await user?.update(updateData);
       
-      // Smart redirect based on subscription status
-      if (selectedCollege?.has_subscription) {
-        // College has subscription → Homepage
-        router.push("/");
+      // ✨ NEW FLOW: Submit application if institutional student
+      if (selectedCollege && isInstitution) {
+        try {
+          // Submit application to institution
+          const response = await fetch('https://firstchapterai-production.up.railway.app/api/institution/student/apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: user.id,
+              institution_id: selectedCollege.institution_id,
+              student_name: user.fullName || user.firstName || 'Student',
+              student_email: user.primaryEmailAddress?.emailAddress || user.emailAddresses[0]?.emailAddress,
+              department: profession === 'Student' ? 'General' : null,
+              course: null,
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error('Application submission failed');
+          }
+
+          // Redirect to pending page
+          router.push('/reader-onboarding/pending');
+        } catch (appError) {
+          console.error('Application error:', appError);
+          alert('Could not submit application. Please try again or contact support.');
+          setLoading(false);
+          return;
+        }
       } else {
-        // No subscription or individual → Pricing page
+        // Individual reader (no college) → Go to pricing
         router.push("/pricing");
       }
     } catch (e) {
@@ -384,9 +409,24 @@ export default function ReaderOnboarding() {
                       }
                     });
                     
-                    // Smart redirect based on subscription status
-                    if (selectedCollege?.has_subscription) {
-                      router.push("/");
+                    // ✨ NEW FLOW: Submit application if institutional student
+                    if (selectedCollege && isInstitution) {
+                      try {
+                        await fetch('https://firstchapterai-production.up.railway.app/api/institution/student/apply', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            user_id: user.id,
+                            institution_id: selectedCollege.institution_id,
+                            student_name: user.fullName || user.firstName || 'Student',
+                            student_email: user.primaryEmailAddress?.emailAddress || user.emailAddresses[0]?.emailAddress,
+                          })
+                        });
+                        router.push('/reader-onboarding/pending');
+                      } catch {
+                        alert('Could not submit application. Please complete your profile.');
+                        setLoading(false);
+                      }
                     } else {
                       router.push("/pricing");
                     }
