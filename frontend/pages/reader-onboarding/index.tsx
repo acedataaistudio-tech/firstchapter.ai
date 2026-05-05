@@ -116,7 +116,7 @@ export default function ReaderOnboarding() {
       if (selectedCollege && isInstitution) {
         try {
           // Submit application to institution
-          const response = await fetch('https://firstchapterai-production.up.railway.app/api/institution/student/apply', {
+          const response = await fetch('https://firstchapterai-production.up.railway.app/api/student/apply', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -422,7 +422,7 @@ export default function ReaderOnboarding() {
                     // ✨ NEW FLOW: Submit application if institutional student
                     if (selectedCollege && isInstitution) {
                       try {
-                        await fetch('https://firstchapterai-production.up.railway.app/api/institution/student/apply', {
+                        await fetch('https://firstchapterai-production.up.railway.app/api/student/apply', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
