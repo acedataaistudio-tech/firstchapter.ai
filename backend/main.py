@@ -114,9 +114,9 @@ app.include_router(admin_cost_tracking.router, prefix="/api", tags=["Admin Cost 
 app.include_router(publisher_payout_management.router, prefix="/api", tags=["Publisher Payout Management"])
 
 # Phase 3: Institution Management Routes
-app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
-app.include_router(packages.router, prefix="/api", tags=["Packages"])
 app.include_router(onboarding.router, prefix="/api", tags=["Institution Onboarding"])
+app.include_router(packages.router, prefix="/api", tags=["Packages"])
+app.include_router(colleges.router, prefix="/api", tags=["Colleges"])
 app.include_router(dashboard.router, prefix="/api", tags=["Institution Dashboard"])
 app.include_router(management.router, prefix="/api", tags=["Student Management"])
 app.include_router(notifications.router, prefix="/api", tags=["Notifications"])
