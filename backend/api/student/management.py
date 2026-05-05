@@ -54,16 +54,17 @@ async def submit_student_application(request: StudentApplicationRequest):
     
     try:
         # Check if institution exists and is active
-        institution = db.table("institutions")\
+        institution_query = db.table("institutions")\
             .select("id, name, is_active, application_status")\
             .eq("id", request.institution_id)\
-            .single()\
             .execute()
         
-        if not institution.data:
+        if not institution_query.data or len(institution_query.data) == 0:
             raise HTTPException(status_code=404, detail="Institution not found")
         
-        if not institution.data.get("is_active"):
+        institution = institution_query.data[0]
+        
+        if not institution.get("is_active"):
             raise HTTPException(
                 status_code=400,
                 detail="This institution is not currently accepting students"
@@ -117,7 +118,7 @@ async def submit_student_application(request: StudentApplicationRequest):
             "success": True,
             "student_id": result.data[0]["id"],
             "status": "pending",
-            "message": f"Application submitted to {institution.data['name']}. You will be notified once reviewed."
+            "message": f"Application submitted to {institution['name']}. You will be notified once reviewed."
         }
     
     except HTTPException:
@@ -222,25 +223,17 @@ async def approve_or_reject_student(request: StudentApprovalRequest):
                 "access_granted_at": datetime.utcnow().isoformat(),
             }).eq("id", request.student_id).execute()
             
-            # ✨ NEW: Update users table with institution_id
+            # ✨ Update users table with institution_id
             try:
-                # Check if user exists in users table
-                user_check = db.table("users")\
-                    .select("id")\
-                    .eq("id", student_data["user_id"])\
-                    .execute()
-                
+                user_check = db.table("users").select("id").eq("id", student_data["user_id"]).execute()
                 if user_check.data and len(user_check.data) > 0:
-                    # Update existing user
                     db.table("users").update({
                         "institution_id": student_data["institution_id"],
                         "role": "reader",
                         "plan_type": "institution",
                         "updated_at": datetime.utcnow().isoformat()
                     }).eq("id", student_data["user_id"]).execute()
-                    print(f"✅ Linked user {student_data['user_id']} to institution {student_data['institution_id']}")
                 else:
-                    # Create user record if doesn't exist
                     db.table("users").insert({
                         "id": student_data["user_id"],
                         "email": student_data["student_email"],
@@ -248,13 +241,10 @@ async def approve_or_reject_student(request: StudentApprovalRequest):
                         "role": "reader",
                         "plan_type": "institution",
                         "queries_used": 0,
-                        "queries_limit": 999999,  # Institution subscription
-                        "created_at": datetime.utcnow().isoformat()
+                        "queries_limit": 999999,
                     }).execute()
-                    print(f"✅ Created user record with institution link for {student_data['user_id']}")
             except Exception as e:
-                print(f"⚠️ Failed to update users table: {e}")
-                # Don't fail approval if users table update fails
+                print(f"⚠️ Could not update users table: {e}")
             
             # Add student to institution_users table (for token tracking)
             # Get institution subscription to calculate student allocation
