@@ -17,6 +17,97 @@ def verify_admin(x_admin_secret: str = Header(...)):
     if x_admin_secret != ADMIN_SECRET:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+# ══════════════════════════════════════════════════════════════════
+# HELPER FUNCTIONS FOR CLIENT_COLLEGES SYNC
+# ══════════════════════════════════════════════════════════════════
+
+def sync_to_client_colleges(db, institution_id: str, subscription_id: str):
+    """
+    ✨ Auto-sync approved institution to client_colleges table.
+    Called after subscription is created.
+    """
+    try:
+        # Get institution details
+        institution = db.table("institutions")\
+            .select("*")\
+            .eq("id", institution_id)\
+            .single()\
+            .execute()
+        
+        if not institution.data:
+            print(f"⚠️ Institution {institution_id} not found for sync")
+            return
+        
+        inst = institution.data
+        
+        # Check if already in client_colleges
+        existing = db.table("client_colleges")\
+            .select("id")\
+            .eq("institution_id", institution_id)\
+            .execute()
+        
+        client_college_data = {
+            "institution_id": institution_id,
+            "institution_name": inst["name"],
+            "institution_type": inst.get("type", "college"),
+            "subscription_id": subscription_id,
+            "is_client": True,
+            "is_active": True,
+            
+            # Contact info
+            "contact_email": inst.get("contact_email"),
+            "contact_phone": inst.get("contact_phone"),
+            "contact_person": inst.get("contact_person_name"),
+            
+            # Address
+            "city": inst.get("city"),
+            "state": inst.get("state"),
+            "country": inst.get("country", "India"),
+            
+            # Metadata
+            "synced_at": datetime.utcnow().isoformat(),
+        }
+        
+        if existing.data and len(existing.data) > 0:
+            # Update existing record
+            db.table("client_colleges")\
+                .update(client_college_data)\
+                .eq("institution_id", institution_id)\
+                .execute()
+            print(f"✅ Updated client_colleges for {inst['name']}")
+        else:
+            # Insert new record
+            db.table("client_colleges")\
+                .insert(client_college_data)\
+                .execute()
+            print(f"✅ Synced {inst['name']} to client_colleges")
+        
+    except Exception as e:
+        print(f"❌ Error syncing to client_colleges: {e}")
+        # Don't fail the approval if sync fails - just log it
+
+def remove_from_client_colleges(db, institution_id: str):
+    """
+    ✨ Remove/deactivate institution from client_colleges when deleted.
+    Uses soft delete (is_active = false) to preserve history.
+    """
+    try:
+        # Soft delete - set inactive
+        result = db.table("client_colleges")\
+            .update({
+                "is_active": False,
+                "is_client": False,
+                "synced_at": datetime.utcnow().isoformat()
+            })\
+            .eq("institution_id", institution_id)\
+            .execute()
+        
+        print(f"✅ Deactivated institution {institution_id} from client_colleges")
+        return True
+    except Exception as e:
+        print(f"❌ Error removing from client_colleges: {e}")
+        return False
+
 class InstitutionApprovalRequest(BaseModel):
     institution_id: str
     action: str  # 'approve' or 'reject'
@@ -190,6 +281,9 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_a
             
             db.table("subscriptions").insert(subscription_data).execute()
             
+            # ✨ NEW: Auto-sync to client_colleges
+            sync_to_client_colleges(db, request.institution_id, subscription_data['id'])
+            
             # Create notification for institution admin
             db.rpc("create_notification", {
                 "p_user_id": institution['clerk_user_id'],
@@ -253,4 +347,60 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_a
         raise
     except Exception as e:
         logger.error(f"Error processing institution approval: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{institution_id}")
+async def delete_institution(institution_id: str, x_admin_secret: str = Header(...)):
+    """
+    ✨ NEW: Delete (deactivate) an institution.
+    
+    Soft delete approach:
+    - Sets institution is_active = false
+    - Deactivates subscription
+    - Removes from client_colleges (soft delete)
+    """
+    verify_admin(x_admin_secret)
+    
+    from database.crud import get_db
+    db = get_db()
+    
+    try:
+        # Check if institution exists
+        institution = db.table("institutions")\
+            .select("id, name")\
+            .eq("id", institution_id)\
+            .single()\
+            .execute()
+        
+        if not institution.data:
+            raise HTTPException(status_code=404, detail="Institution not found")
+        
+        # Soft delete institution
+        db.table("institutions").update({
+            "is_active": False,
+            "application_status": "deleted",
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("id", institution_id).execute()
+        
+        # Deactivate subscription
+        db.table("subscriptions").update({
+            "is_active": False,
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("institution_id", institution_id).execute()
+        
+        # Remove from client_colleges
+        remove_from_client_colleges(db, institution_id)
+        
+        print(f"✅ Deleted institution: {institution.data['name']}")
+        
+        return {
+            "success": True,
+            "message": f"Institution {institution.data['name']} deleted successfully"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error deleting institution: {e}")
         raise HTTPException(status_code=500, detail=str(e))
