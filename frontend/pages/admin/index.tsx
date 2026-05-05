@@ -89,12 +89,38 @@ export default function AdminDashboard() {
   };
 
   // Delete user
-  const handleDeleteUser = async (userId: string, name: string) => {
+  const handleDeleteUser = async (userId: string, name: string, role: string) => {
     if (!confirm(`Delete user "${name}"? This cannot be undone.`)) return;
+    
     try {
+      // If deleting an institution user, cleanup institution data first
+      if (role === "institution") {
+        try {
+          // Fetch the institution by clerk_user_id
+          const instRes = await fetch(`${API_URL}/api/admin/institutions/list?status=approved`, { 
+            headers: ADMIN_HEADERS 
+          });
+          const instData = await instRes.json();
+          const institution = instData.institutions?.find((inst: any) => inst.clerk_user_id === userId);
+          
+          if (institution) {
+            // Delete the institution (this also cleans up client_colleges and subscription)
+            await fetch(`${API_URL}/api/admin/institutions/${institution.id}`, { 
+              method: "DELETE", 
+              headers: ADMIN_HEADERS 
+            });
+            console.log(`✅ Cleaned up institution data for ${institution.name}`);
+          }
+        } catch (instErr) {
+          console.error("Failed to cleanup institution data:", instErr);
+          // Continue with user deletion even if institution cleanup fails
+        }
+      }
+      
+      // Delete the user from Clerk
       await fetch(`${API_URL}/api/admin/users/${userId}`, { method: "DELETE", headers: ADMIN_HEADERS });
       setUsers(prev => prev.filter(u => u.id !== userId));
-      alert(`✅ User "${name}" deleted.`);
+      alert(`✅ User "${name}" deleted${role === "institution" ? " (institution data cleaned up)" : ""}.`);
     } catch (e) {
       alert("Failed to delete user.");
     }
@@ -425,7 +451,7 @@ export default function AdminDashboard() {
                               }}>
                                 {user.status === "active" ? "Suspend" : "Reactivate"}
                               </button>
-                              <button onClick={() => handleDeleteUser(user.id, user.name)} style={{
+                              <button onClick={() => handleDeleteUser(user.id, user.name, user.role)} style={{
                                 background: "#FCEBEB", color: "#A32D2D",
                                 border: "none", borderRadius: "100px", padding: "4px 10px",
                                 fontSize: "11px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
@@ -590,7 +616,7 @@ export default function AdminDashboard() {
                       }}>
                         Suspend
                       </button>
-                      <button onClick={() => handleDeleteUser(pub.id, pub.name)} style={{
+                      <button onClick={() => handleDeleteUser(pub.id, pub.name, pub.role)} style={{
                         background: "#FCEBEB", color: "#A32D2D",
                         border: "none", borderRadius: "100px", padding: "4px 10px",
                         fontSize: "11px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
