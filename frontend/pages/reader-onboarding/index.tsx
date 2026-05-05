@@ -121,7 +121,7 @@ export default function ReaderOnboarding() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               user_id: user.id,
-              institution_id: selectedCollege.institution_id,
+              institution_id: selectedCollege.id,  // ✅ Fixed: use .id not .institution_id
               student_name: user.fullName || user.firstName || 'Student',
               student_email: user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || '',
               department: profession === 'Student' ? 'General' : null,
@@ -427,7 +427,7 @@ export default function ReaderOnboarding() {
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                             user_id: user.id,
-                            institution_id: selectedCollege.institution_id,
+                            institution_id: selectedCollege.id,  // ✅ Fixed: use .id
                             student_name: user.fullName || user.firstName || 'Student',
                             student_email: user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || '',
                           })
