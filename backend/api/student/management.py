@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime
+import uuid
 
 router = APIRouter()
 
@@ -100,11 +101,11 @@ async def submit_student_application(request: StudentApplicationRequest):
             "student_name": request.student_name,
             "student_email": request.student_email,
             "student_roll_number": request.student_roll_number,
-            "department": request.department,
-            "course": request.course,
-            "year_of_study": request.year_of_study,
+            "student_department": request.department,  # ✅ Fixed column name
+            "student_course": request.course,  # ✅ Fixed column name
+            "student_year": str(request.year_of_study) if request.year_of_study else None,  # ✅ Fixed column name
             "application_status": "pending",
-            "application_submitted_at": datetime.utcnow().isoformat(),
+            "applied_at": datetime.utcnow().isoformat(),  # ✅ Fixed column name
         }
         
         result = db.table("institution_students").insert(student_data).execute()
@@ -177,7 +178,7 @@ async def get_pending_applications(institution_id: str):
             .select("*")\
             .eq("institution_id", institution_id)\
             .eq("application_status", "pending")\
-            .order("application_submitted_at", desc=True)\
+            .order("applied_at", desc=True)\
             .execute()
         
         return {
@@ -396,9 +397,9 @@ async def bulk_upload_students(request: BulkStudentUpload):
                     "student_name": student_data["student_name"],
                     "student_email": student_data["student_email"],
                     "student_roll_number": student_data.get("student_roll_number"),
-                    "department": student_data.get("department"),
-                    "course": student_data.get("course"),
-                    "year_of_study": student_data.get("year_of_study"),
+                    "student_department": student_data.get("department"),  # ✅ Fixed
+                    "student_course": student_data.get("course"),  # ✅ Fixed
+                    "student_year": str(student_data.get("year_of_study")) if student_data.get("year_of_study") else None,  # ✅ Fixed
                     "application_status": "approved",
                     "approved_by": request.admin_user_id,
                     "approved_at": datetime.utcnow().isoformat(),
