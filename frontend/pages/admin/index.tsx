@@ -90,38 +90,67 @@ export default function AdminDashboard() {
 
   // Delete user
   const handleDeleteUser = async (userId: string, name: string, role: string) => {
+    // Debug: Log what we're working with
+    console.log('🔍 Deleting user:', { userId, name, role });
+    
     if (!confirm(`Delete user "${name}"? This cannot be undone.`)) return;
     
     try {
       // If deleting an institution user, cleanup institution data first
-      if (role === "institution") {
+      // Case-insensitive check to handle "institution" or "Institution"
+      if (role?.toLowerCase() === "institution") {
+        console.log('✅ User is institution type - starting cleanup...');
+        
         try {
           // Fetch the institution by clerk_user_id
+          console.log('📡 Fetching institutions list...');
           const instRes = await fetch(`${API_URL}/api/admin/institutions/list?status=approved`, { 
             headers: ADMIN_HEADERS 
           });
           const instData = await instRes.json();
+          console.log('📋 Found institutions:', instData.institutions?.length);
+          
           const institution = instData.institutions?.find((inst: any) => inst.clerk_user_id === userId);
+          console.log('🔎 Found matching institution:', institution?.name || 'None');
           
           if (institution) {
+            console.log(`🗑️ Deleting institution: ${institution.name} (${institution.id})`);
+            
             // Delete the institution (this also cleans up client_colleges and subscription)
-            await fetch(`${API_URL}/api/admin/institutions/${institution.id}`, { 
+            const delRes = await fetch(`${API_URL}/api/admin/institutions/${institution.id}`, { 
               method: "DELETE", 
               headers: ADMIN_HEADERS 
             });
-            console.log(`✅ Cleaned up institution data for ${institution.name}`);
+            
+            if (delRes.ok) {
+              console.log(`✅ Cleaned up institution data for ${institution.name}`);
+            } else {
+              console.error('❌ Institution delete failed:', await delRes.text());
+            }
+          } else {
+            console.warn('⚠️ No institution found for this user');
           }
         } catch (instErr) {
-          console.error("Failed to cleanup institution data:", instErr);
+          console.error("❌ Failed to cleanup institution data:", instErr);
           // Continue with user deletion even if institution cleanup fails
         }
+      } else {
+        console.log('ℹ️ User is not institution type, skipping institution cleanup');
       }
       
       // Delete the user from Clerk
+      console.log('🗑️ Deleting user from Clerk...');
       await fetch(`${API_URL}/api/admin/users/${userId}`, { method: "DELETE", headers: ADMIN_HEADERS });
       setUsers(prev => prev.filter(u => u.id !== userId));
-      alert(`✅ User "${name}" deleted${role === "institution" ? " (institution data cleaned up)" : ""}.`);
+      
+      const message = role?.toLowerCase() === "institution" 
+        ? `✅ User "${name}" deleted (institution data cleaned up).`
+        : `✅ User "${name}" deleted.`;
+      
+      alert(message);
+      console.log('✅ User deletion complete');
     } catch (e) {
+      console.error("❌ Delete error:", e);
       alert("Failed to delete user.");
     }
   };
