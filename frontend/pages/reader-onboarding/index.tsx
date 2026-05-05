@@ -109,8 +109,8 @@ export default function ReaderOnboarding() {
       
       // Smart redirect based on subscription status
       if (selectedCollege?.has_subscription) {
-        // College has subscription → Reader dashboard
-        router.push("/reader");
+        // College has subscription → Homepage
+        router.push("/");
       } else {
         // No subscription or individual → Pricing page
         router.push("/pricing");
@@ -386,7 +386,7 @@ export default function ReaderOnboarding() {
                     
                     // Smart redirect based on subscription status
                     if (selectedCollege?.has_subscription) {
-                      router.push("/reader");
+                      router.push("/");
                     } else {
                       router.push("/pricing");
                     }
