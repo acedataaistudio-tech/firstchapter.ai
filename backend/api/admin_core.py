@@ -219,3 +219,67 @@ def admin_unsuspend_user(user_id: str, x_admin_secret: str = Header(...)):
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ── Institutions ────────────────────────────────────────────────────────────────
+
+@router.delete("/institutions/{institution_id}")
+def admin_delete_institution(institution_id: str, x_admin_secret: str = Header(...)):
+    """
+    Delete (deactivate) an institution.
+    
+    Performs soft delete:
+    - Sets institution is_active = false
+    - Deactivates subscription
+    - Removes from client_colleges table
+    """
+    verify_admin(x_admin_secret)
+    
+    try:
+        db = get_db()
+        
+        # Check if institution exists
+        institution = db.table("institutions")\
+            .select("id, name")\
+            .eq("id", institution_id)\
+            .execute()
+        
+        if not institution.data or len(institution.data) == 0:
+            raise HTTPException(status_code=404, detail="Institution not found")
+        
+        inst_name = institution.data[0].get('name', 'Unknown')
+        
+        # Soft delete institution
+        db.table("institutions").update({
+            "is_active": False,
+            "application_status": "deleted"
+        }).eq("id", institution_id).execute()
+        
+        # Deactivate subscription
+        db.table("subscriptions").update({
+            "is_active": False
+        }).eq("institution_id", institution_id).execute()
+        
+        # Remove from client_colleges (soft delete)
+        try:
+            from datetime import datetime
+            db.table("client_colleges").update({
+                "is_active": False,
+                "is_client": False,
+                "synced_at": datetime.utcnow().isoformat()
+            }).eq("institution_id", institution_id).execute()
+            print(f"✅ Deactivated {inst_name} from client_colleges")
+        except Exception as e:
+            print(f"⚠️ Could not remove from client_colleges: {e}")
+        
+        print(f"✅ Deleted institution: {inst_name}")
+        
+        return {
+            "success": True,
+            "message": f"Institution {inst_name} deleted successfully"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error deleting institution: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
