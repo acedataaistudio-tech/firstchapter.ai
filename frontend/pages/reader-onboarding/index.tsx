@@ -88,6 +88,11 @@ export default function ReaderOnboarding() {
       return;
     }
 
+    if (!user) {
+      alert("User not loaded. Please try again.");
+      return;
+    }
+
     setLoading(true);
     try {
       const updateData: any = {
@@ -105,7 +110,7 @@ export default function ReaderOnboarding() {
         }
       };
 
-      await user?.update(updateData);
+      await user.update(updateData);
       
       // ✨ NEW FLOW: Submit application if institutional student
       if (selectedCollege && isInstitution) {
@@ -118,7 +123,7 @@ export default function ReaderOnboarding() {
               user_id: user.id,
               institution_id: selectedCollege.institution_id,
               student_name: user.fullName || user.firstName || 'Student',
-              student_email: user.primaryEmailAddress?.emailAddress || user.emailAddresses[0]?.emailAddress,
+              student_email: user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || '',
               department: profession === 'Student' ? 'General' : null,
               course: null,
             })
@@ -394,10 +399,15 @@ export default function ReaderOnboarding() {
 
               <button
                 onClick={async () => {
+                  if (!user) {
+                    alert("User not loaded. Please try again.");
+                    return;
+                  }
+
                   // Allow skip but save minimum data
                   setLoading(true);
                   try {
-                    await user?.update({
+                    await user.update({
                       unsafeMetadata: {
                         role:      isInstitution ? "student" : "reader",
                         onboarded: true,
@@ -419,7 +429,7 @@ export default function ReaderOnboarding() {
                             user_id: user.id,
                             institution_id: selectedCollege.institution_id,
                             student_name: user.fullName || user.firstName || 'Student',
-                            student_email: user.primaryEmailAddress?.emailAddress || user.emailAddresses[0]?.emailAddress,
+                            student_email: user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || '',
                           })
                         });
                         router.push('/reader-onboarding/pending');
