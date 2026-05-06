@@ -90,18 +90,21 @@ async def create_mau_order(request: CreateMAUOrderRequest):
         razorpay_order = razorpay_client.order.create(data=order_data)
         
         # Log the purchase attempt
-        db.rpc("log_institution_activity", {
-            "p_institution_id": request.institution_id,
-            "p_user_id": request.admin_user_id,
-            "p_user_name": request.admin_name,
-            "p_action_type": "mau_purchase_initiated",
-            "p_action_description": f"Initiated purchase of {request.additional_users} additional readers",
-            "p_details": {
+        # Log the purchase attempt (non-fatal)
+        from utils.activity_log import log_institution_activity
+        log_institution_activity(
+            db,
+            institution_id=request.institution_id,
+            user_id=request.admin_user_id,
+            user_name=request.admin_name,
+            action_type="mau_purchase_initiated",
+            action_description=f"Initiated purchase of {request.additional_users} additional readers",
+            action_details={
                 "additional_users": request.additional_users,
                 "amount": amount / 100,
-                "order_id": razorpay_order["id"]
-            }
-        }).execute()
+                "order_id": razorpay_order["id"],
+            },
+        )
         
         return {
             "success": True,
@@ -185,20 +188,22 @@ async def verify_mau_payment(request: VerifyMAUPaymentRequest):
             "purchased_at": datetime.utcnow().isoformat()
         }).execute()
         
-        # Log successful purchase
-        db.rpc("log_institution_activity", {
-            "p_institution_id": request.institution_id,
-            "p_user_id": request.admin_user_id,
-            "p_user_name": request.admin_name,
-            "p_action_type": "mau_purchased",
-            "p_action_description": f"Purchased {request.additional_users} additional readers",
-            "p_details": {
+        # Log successful purchase (non-fatal)
+        from utils.activity_log import log_institution_activity
+        log_institution_activity(
+            db,
+            institution_id=request.institution_id,
+            user_id=request.admin_user_id,
+            user_name=request.admin_name,
+            action_type="mau_purchased",
+            action_description=f"Purchased {request.additional_users} additional readers",
+            action_details={
                 "additional_users": request.additional_users,
                 "total_amount": request.additional_users * PRICE_PER_READER,
                 "new_total_capacity": new_total_capacity,
-                "payment_id": request.payment_id
-            }
-        }).execute()
+                "payment_id": request.payment_id,
+            },
+        )
         
         return {
             "success": True,

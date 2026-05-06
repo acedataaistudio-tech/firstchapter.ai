@@ -302,18 +302,19 @@ async def approve_or_reject_student(request: StudentApprovalRequest):
                 except Exception as e:
                     print(f"⚠️ Could not allocate institution_users tokens: {e}")
 
-            try:
-                db.rpc("log_institution_activity", {
-                    "p_institution_id": student_data["institution_id"],
-                    "p_user_id": request.admin_user_id,
-                    "p_user_name": request.admin_name or "Institution Admin",
-                    "p_action_type": "student_approved",
-                    "p_action_description": f"Approved student: {student_data['student_name']}",
-                    "p_related_entity_type": "student",
-                    "p_related_entity_id": request.student_id,
-                }).execute()
-            except Exception as e:
-                print(f"⚠️ Activity log failed (non-fatal): {e}")
+            from utils.activity_log import log_institution_activity
+            log_institution_activity(
+                db,
+                institution_id=student_data["institution_id"],
+                user_id=request.admin_user_id,
+                user_name=request.admin_name or "Institution Admin",
+                action_type="student_approved",
+                action_description=f"Approved student: {student_data['student_name']}",
+                action_details={
+                    "student_id": request.student_id,
+                    "student_email": student_data.get("student_email"),
+                },
+            )
 
             validity_msg = f" (access valid for {request.validity_years} year{'s' if request.validity_years != 1 else ''})" if request.validity_years else ""
             message = f"Student {student_data['student_name']} has been approved!{validity_msg}"
@@ -328,19 +329,19 @@ async def approve_or_reject_student(request: StudentApprovalRequest):
                 "is_active": False,
             }).eq("id", request.student_id).execute()
 
-            try:
-                db.rpc("log_institution_activity", {
-                    "p_institution_id": student_data["institution_id"],
-                    "p_user_id": request.admin_user_id,
-                    "p_user_name": request.admin_name or "Institution Admin",
-                    "p_action_type": "student_rejected",
-                    "p_action_description": f"Rejected student: {student_data['student_name']}",
-                    "p_related_entity_type": "student",
-                    "p_related_entity_id": request.student_id,
-                    "p_details": {"rejection_reason": request.rejection_reason}
-                }).execute()
-            except Exception as e:
-                print(f"⚠️ Activity log failed (non-fatal): {e}")
+            from utils.activity_log import log_institution_activity
+            log_institution_activity(
+                db,
+                institution_id=student_data["institution_id"],
+                user_id=request.admin_user_id,
+                user_name=request.admin_name or "Institution Admin",
+                action_type="student_rejected",
+                action_description=f"Rejected student: {student_data['student_name']}",
+                action_details={
+                    "student_id": request.student_id,
+                    "rejection_reason": request.rejection_reason,
+                },
+            )
 
             message = f"Student {student_data['student_name']} application has been rejected."
 

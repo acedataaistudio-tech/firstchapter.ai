@@ -292,14 +292,17 @@ async def update_institution_settings(request: UpdateInstitutionSettingsRequest)
         }).eq("id", sub["id"]).execute()
         
         # Log activity
-        db.rpc("log_institution_activity", {
-            "p_institution_id": request.institution_id,
-            "p_user_id": request.admin_user_id,
-            "p_user_name": request.admin_name,
-            "p_action_type": "settings_updated",
-            "p_action_description": f"Updated FUP settings",
-            "p_details": new_settings
-        }).execute()
+        # Log activity (non-fatal)
+        from utils.activity_log import log_institution_activity
+        log_institution_activity(
+            db,
+            institution_id=request.institution_id,
+            user_id=request.admin_user_id,
+            user_name=request.admin_name,
+            action_type="settings_updated",
+            action_description="Updated FUP settings",
+            action_details=new_settings,
+        )
         
         # Create audit record
         db.table("institution_settings_audit").insert({
