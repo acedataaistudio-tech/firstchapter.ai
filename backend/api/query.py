@@ -63,8 +63,11 @@ async def query(request: QueryRequest, x_user_id: str = Header(default="anonymou
         print(f"⚠️ Fair usage middleware error (failing open): {e}")
 
     warning_message = fair_usage_result.get('warning')
-    # max_tokens budget could be passed to query_books if it accepts it;
-    # leaving inline for now since query_books doesn't currently take it.
+    # ✅ Phase B finalization: pass the computed max_tokens cap through to the LLM
+    # call so the institution admin's max_tokens_per_request setting actually
+    # constrains response length (and dynamic throttling at 80/90/95% reduces
+    # it further when pool is stressed)
+    max_tokens_cap = fair_usage_result.get('max_tokens')
 
     try:
         result = query_books(
@@ -72,6 +75,7 @@ async def query(request: QueryRequest, x_user_id: str = Header(default="anonymou
             book_ids=request.book_ids,
             user_id=x_user_id,
             chat_history=request.chat_history or [],
+            max_tokens=max_tokens_cap,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

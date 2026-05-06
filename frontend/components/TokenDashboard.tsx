@@ -277,44 +277,6 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
         </div>
       )}
 
-      {/* Institution pool (secondary context for institution users) */}
-      {isInstitution && (usage.input_tokens_allocated > 0 || usage.output_tokens_allocated > 0) && (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Institution Pool</h3>
-          <p className="text-xs text-gray-500 mb-4">
-            Shared across all members of your institution. Throttling kicks in at 80%+.
-          </p>
-
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-700">Input Tokens</span>
-              <span className="text-sm text-gray-600">
-                {formatNumber(usage.input_tokens_used)} / {formatNumber(usage.input_tokens_allocated)}
-              </span>
-            </div>
-            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${poolInputPct}%` }} />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">{poolInputPct.toFixed(1)}% used institution-wide</p>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-700">Output Tokens</span>
-              <span className="text-sm text-gray-600">
-                {formatNumber(usage.output_tokens_used)} / {formatNumber(usage.output_tokens_allocated)}
-              </span>
-            </div>
-            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full transition-all duration-500 ${
-                poolOutputPct >= 95 ? 'bg-red-500' : poolOutputPct >= 80 ? 'bg-yellow-500' : 'bg-green-500'
-              }`} style={{ width: `${poolOutputPct}%` }} />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">{poolOutputPct.toFixed(1)}% used institution-wide</p>
-          </div>
-        </div>
-      )}
-
       {/* Non-institution view — original breakdown layout */}
       {!isInstitution && usage.tokens_allocated > 0 && (
         <div className="bg-white rounded-lg border p-6">

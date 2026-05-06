@@ -12,13 +12,20 @@ from ingestion.pipeline import get_qdrant_client, get_embeddings
 from config import settings
 from typing import List, Optional
 
-def get_llm(streaming: bool = False):
-    return ChatOpenAI(
-        model=settings.llm_model,
-        openai_api_key=settings.openai_api_key,
-        temperature=0.1,
-        streaming=streaming,
-    )
+def get_llm(streaming: bool = False, max_tokens: Optional[int] = None):
+    """
+    Get the LLM client. If max_tokens is provided, the response is capped at
+    that many output tokens. Used for fair-usage throttling.
+    """
+    kwargs = {
+        "model": settings.llm_model,
+        "openai_api_key": settings.openai_api_key,
+        "temperature": 0.1,
+        "streaming": streaming,
+    }
+    if max_tokens and max_tokens > 0:
+        kwargs["max_tokens"] = int(max_tokens)
+    return ChatOpenAI(**kwargs)
 
 def get_vectorstore():
     return QdrantVectorStore(
@@ -136,7 +143,17 @@ def query_books(
     book_ids: Optional[List[str]] = None,
     user_id: str = "",
     chat_history: Optional[List[dict]] = None,
+    max_tokens: Optional[int] = None,
 ) -> dict:
+    """
+    Query selected books with RAG.
+
+    Args:
+        max_tokens: Optional cap on the LLM's output tokens. Used by fair-usage
+            middleware to throttle queries when an institution is at high
+            utilization or a student is at high cap. None = no explicit cap
+            (model uses its default).
+    """
     # Rewrite vague queries for better RAG performance
     search_question = rewrite_vague_query(question)
     vectorstore = get_vectorstore()
@@ -197,7 +214,13 @@ YOUR ANSWER WITH CITATIONS:
         input_variables=["context", "question", "history"],
     )
 
-    llm = get_llm()
+    # ✅ Use the configured max_tokens cap for the main answer
+    llm = get_llm(max_tokens=max_tokens)
+
+    # Suggestions are short by design (3 brief questions in JSON), so they
+    # don't need the full max_tokens cap — keep a small fixed budget instead
+    # to ensure they always complete even when the institution cap is tight.
+    suggestions_llm = get_llm(max_tokens=300)
 
     chain = (
         {
@@ -225,9 +248,10 @@ YOUR ANSWER WITH CITATIONS:
     # Generate follow-up suggestions
     suggestions = []
     try:
-        # ✅ UPDATED: Track tokens for suggestions too
+        # ✅ UPDATED: Track tokens for suggestions too — uses suggestions_llm
+        # which has its own small cap so suggestions always complete
         with get_openai_callback() as cb_suggestions:
-            suggestions_response = llm.invoke(
+            suggestions_response = suggestions_llm.invoke(
                 f"Based on this Q&A, suggest 3 short follow-up questions "
                 f"a curious student might ask.\n"
                 f"Question: {question}\n"
