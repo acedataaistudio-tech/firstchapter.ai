@@ -622,19 +622,38 @@ export default function Home() {
   };
 
   const handleQuery = async () => {
-    if (!chatInput.trim()) return;
-    const question = chatInput.trim(); setChatInput(""); setView("chat");
-    addMessage({ id: uuidv4(), role: "user" as const, content: question, timestamp: new Date().toISOString() });
-    setIsQuerying(true);
-    try {
-      const history = messages.map(m => ({ role: m.role, content: m.content }));
-      const data = await queryBooks(question, selectedBookIds.length > 0 ? selectedBookIds : null, sessionId, history);
-      if (!sessionId) setSessionId(data.session_id);
-      setQueriesLeft(data.queries_remaining);
-      addMessage({ id: uuidv4(), role: "assistant", content: data.answer, sources: data.sources, suggestions: data.suggestions || [], timestamp: new Date().toISOString() });
-    } catch (e: any) { toast.error(e?.message || "Query failed."); }
-    finally { setIsQuerying(false); }
-  };
+  if (!chatInput.trim()) return;
+  const question = chatInput.trim(); setChatInput(""); setView("chat");
+  addMessage({ id: uuidv4(), role: "user" as const, content: question, timestamp: new Date().toISOString() });
+  setIsQuerying(true);
+  try {
+    const history = messages.map(m => ({ role: m.role, content: m.content }));
+    const data = await queryBooks(question, selectedBookIds.length > 0 ? selectedBookIds : null, sessionId, history);
+    if (!sessionId) setSessionId(data.session_id);
+    setQueriesLeft(data.queries_remaining);
+
+    if (data.warning) {
+      toast(data.warning, {
+        duration: 6000,
+        icon: "⚠️",
+        style: {
+          background: "#FFF8E7",
+          color: "#8B5A00",
+          border: "1px solid #FFE4A3",
+          fontSize: "13px",
+          maxWidth: "420px",
+        },
+      });
+    }
+
+    addMessage({ id: uuidv4(), role: "assistant", content: data.answer, sources: data.sources, suggestions: data.suggestions || [], timestamp: new Date().toISOString() });
+  } catch (e: any) {
+    const detailMsg = e?.detail?.message || e?.detail || e?.message;
+    const errMsg = typeof detailMsg === "string" ? detailMsg : "Query failed.";
+    toast.error(errMsg, { duration: 6000 });
+  }
+  finally { setIsQuerying(false); }
+};
 
   const handleExportDoc = async () => { if (!sessionId) return; await exportToDoc(sessionId, topic || "Firstchapter Session"); toast.success("Downloaded as Word document"); };
   const handleExportPpt = async () => { if (!sessionId) return; await exportToPpt(sessionId, topic || "Firstchapter Session"); toast.success("Downloaded as PowerPoint"); };
