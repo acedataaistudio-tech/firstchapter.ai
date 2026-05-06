@@ -1,14 +1,15 @@
 /**
  * Token Usage Dashboard with Fair Usage Warnings
- * 
- * Shows user's token consumption with visual indicators
- * Includes Fair Usage Policy warnings and throttling information
+ *
+ * For institution users: shows per-student monthly cap as primary view,
+ * with institution pool as secondary context.
+ * For non-institution users: shows subscription allocation as before.
  */
 
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TrendingUp, AlertTriangle, Zap, Info, Clock } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Zap, Info, Building2 } from 'lucide-react';
 
 interface TokenUsage {
   total_input_tokens: number;
@@ -20,9 +21,16 @@ interface TokenUsage {
   input_tokens_used: number;
   output_tokens_used: number;
   tokens_used: number;
-  tokens_remaining: number;
+  tokens_remaining: number | null;
   query_count: number;
   days: number;
+  // 🆕 Institution-specific fields
+  is_institution_user: boolean;
+  institution_id: string | null;
+  institution_name: string | null;
+  student_tokens_allocated: number;
+  student_tokens_used: number;
+  student_usage_percent: number;
 }
 
 interface TokenDashboardProps {
@@ -36,7 +44,6 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
 
   useEffect(() => {
     fetchUsage();
-    // Refresh every 30 seconds
     const interval = setInterval(fetchUsage, 30000);
     return () => clearInterval(interval);
   }, [userId, days]);
@@ -61,53 +68,51 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
     return num.toString();
   };
 
-  const getUsagePercentage = (used: number | undefined, allocated: number | undefined) => {
-    if (!allocated || allocated === 0 || !used) return 0;
+  const pct = (used: number, allocated: number) => {
+    if (!allocated || allocated === 0) return 0;
     return Math.min(100, (used / allocated) * 100);
   };
 
-  const getUsageStatus = (percentage: number) => {
-    if (percentage >= 95) return { color: 'red', label: 'Critical', icon: AlertTriangle };
-    if (percentage >= 80) return { color: 'yellow', label: 'Warning', icon: AlertTriangle };
-    if (percentage >= 60) return { color: 'blue', label: 'Good', icon: TrendingUp };
-    return { color: 'green', label: 'Healthy', icon: Zap };
+  const getUsageColor = (percentage: number) => {
+    if (percentage >= 95) return 'red';
+    if (percentage >= 80) return 'yellow';
+    if (percentage >= 60) return 'blue';
+    return 'green';
   };
 
-  const getFairUsageMessage = (percentage: number) => {
+  const getFairUsageMessage = (percentage: number, isInstitution: boolean) => {
     if (percentage >= 100) {
       return {
         level: 'critical',
         title: '🛑 Monthly Limit Reached',
-        message: 'Your token allocation for this month has been exhausted. Your usage will reset on your renewal date.',
-        action: 'Upgrade your plan to continue using the platform at full speed.',
-        throttle: 'Service paused until reset',
+        message: isInstitution
+          ? "You've reached your monthly token cap. Resets on the 1st of next month, or contact your institution admin for a top-up."
+          : 'Your token allocation for this month has been exhausted. Your usage will reset on your renewal date.',
+        action: isInstitution ? 'Contact your institution admin to release additional tokens.' : 'Upgrade your plan to continue.',
       };
     }
     if (percentage >= 95) {
       return {
         level: 'critical',
         title: '🚨 Critical: Only 5% Remaining',
-        message: 'You have very few tokens left. Queries are being throttled with a 5-second cooldown to prevent overuse.',
-        action: 'Upgrade now to continue without interruption.',
-        throttle: '5 second delay per query',
+        message: "You have very few tokens left. Queries are throttled to manage usage.",
+        action: isInstitution ? 'Contact your institution admin if more tokens are needed.' : 'Upgrade now to continue without interruption.',
       };
     }
     if (percentage >= 90) {
       return {
         level: 'warning',
         title: '⚠️ Warning: 90% Used',
-        message: 'You\'re approaching your monthly limit. A slight 2-second delay is applied to manage usage.',
-        action: 'Consider upgrading to avoid service interruption.',
-        throttle: '2 second delay per query',
+        message: "You're approaching your monthly limit. Per-query token caps are being reduced.",
+        action: isInstitution ? 'Plan ahead — your cap resets at the start of next month.' : 'Consider upgrading to avoid service interruption.',
       };
     }
     if (percentage >= 80) {
       return {
         level: 'notice',
         title: '💡 Notice: 80% Used',
-        message: 'You\'ve used 80% of your monthly tokens. No restrictions yet, but you may want to plan ahead.',
-        action: 'Monitor your usage or upgrade for more capacity.',
-        throttle: 'No throttling (full speed)',
+        message: "You've used 80% of your monthly tokens.",
+        action: 'Monitor your usage as you approach the cap.',
       };
     }
     return null;
@@ -130,33 +135,31 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
     );
   }
 
-  const inputPercentage = getUsagePercentage(usage.input_tokens_used, usage.input_tokens_allocated);
-  const outputPercentage = getUsagePercentage(usage.output_tokens_used, usage.output_tokens_allocated);
-  const totalPercentage = getUsagePercentage(usage.tokens_used, usage.tokens_allocated);
+  const isInstitution = usage.is_institution_user;
 
-  const outputStatus = getUsageStatus(outputPercentage);
-  const fairUsageWarning = getFairUsageMessage(outputPercentage);
-  const StatusIcon = outputStatus.icon;
+  // Primary metric: for institution users it's the personal cap;
+  // for everyone else it's their subscription's combined token allocation.
+  const primaryUsed = isInstitution ? usage.student_tokens_used : usage.tokens_used;
+  const primaryAllocated = isInstitution ? usage.student_tokens_allocated : usage.tokens_allocated;
+  const primaryPct = pct(primaryUsed, primaryAllocated);
+  const primaryColor = getUsageColor(primaryPct);
+  const fairUsageWarning = getFairUsageMessage(primaryPct, isInstitution);
 
-  // Safe defaults for display
+  // Institution pool (only relevant for institution users)
+  const poolInputPct = pct(usage.input_tokens_used, usage.input_tokens_allocated);
+  const poolOutputPct = pct(usage.output_tokens_used, usage.output_tokens_allocated);
+
   const safeUsage = {
     query_count: usage.query_count || 0,
     total_tokens: usage.total_tokens || 0,
     total_input_tokens: usage.total_input_tokens || 0,
     total_output_tokens: usage.total_output_tokens || 0,
-    input_tokens_used: usage.input_tokens_used || 0,
-    output_tokens_used: usage.output_tokens_used || 0,
-    tokens_used: usage.tokens_used || 0,
-    input_tokens_allocated: usage.input_tokens_allocated || 0,
-    output_tokens_allocated: usage.output_tokens_allocated || 0,
-    tokens_allocated: usage.tokens_allocated || 0,
-    tokens_remaining: usage.tokens_remaining || 0,
     days: usage.days || days,
   };
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
+      {/* Top summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Total Queries */}
         <div className="bg-white rounded-lg border p-6">
@@ -168,249 +171,233 @@ export function TokenDashboard({ userId, days = 30 }: TokenDashboardProps) {
           <p className="text-xs text-gray-500 mt-1">Last {safeUsage.days} days</p>
         </div>
 
-        {/* Total Tokens */}
+        {/* Tokens Used (this user's actual usage from token_usage) */}
         <div className="bg-white rounded-lg border p-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-600">Tokens Used</span>
             <Zap className="w-4 h-4 text-gray-400" />
           </div>
-          <div className="text-3xl font-bold text-gray-900">
-            {formatNumber(safeUsage.total_tokens)}
-          </div>
+          <div className="text-3xl font-bold text-gray-900">{formatNumber(safeUsage.total_tokens)}</div>
           <p className="text-xs text-gray-500 mt-1">
             {formatNumber(safeUsage.total_input_tokens)} in + {formatNumber(safeUsage.total_output_tokens)} out
           </p>
         </div>
 
-        {/* Status */}
+        {/* Status — driven by primary percentage */}
         <div className={`bg-white rounded-lg border p-6 ${
-          outputStatus.color === 'red' ? 'border-red-200 bg-red-50' :
-          outputStatus.color === 'yellow' ? 'border-yellow-200 bg-yellow-50' :
-          outputStatus.color === 'blue' ? 'border-blue-200 bg-blue-50' :
+          primaryColor === 'red' ? 'border-red-200 bg-red-50' :
+          primaryColor === 'yellow' ? 'border-yellow-200 bg-yellow-50' :
+          primaryColor === 'blue' ? 'border-blue-200 bg-blue-50' :
           'border-green-200 bg-green-50'
         }`}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Usage Status</span>
-            <StatusIcon className={`w-5 h-5 ${
-              outputStatus.color === 'red' ? 'text-red-600' :
-              outputStatus.color === 'yellow' ? 'text-yellow-600' :
-              outputStatus.color === 'blue' ? 'text-blue-600' :
-              'text-green-600'
+            <span className="text-sm text-gray-600">Usage Status</span>
+            <AlertTriangle className={`w-4 h-4 ${
+              primaryColor === 'red' ? 'text-red-500' :
+              primaryColor === 'yellow' ? 'text-yellow-500' :
+              primaryColor === 'blue' ? 'text-blue-500' :
+              'text-green-500'
             }`} />
           </div>
-          <div className={`text-3xl font-bold ${
-            outputStatus.color === 'red' ? 'text-red-900' :
-            outputStatus.color === 'yellow' ? 'text-yellow-900' :
-            outputStatus.color === 'blue' ? 'text-blue-900' :
-            'text-green-900'
-          }`}>
-            {outputPercentage.toFixed(0)}%
-          </div>
-          <p className={`text-xs mt-1 ${
-            outputStatus.color === 'red' ? 'text-red-700' :
-            outputStatus.color === 'yellow' ? 'text-yellow-700' :
-            outputStatus.color === 'blue' ? 'text-blue-700' :
-            'text-green-700'
-          }`}>
-            {outputStatus.label}
+          <div className="text-3xl font-bold text-gray-900">{primaryPct.toFixed(0)}%</div>
+          <p className="text-xs text-gray-500 mt-1 capitalize">
+            {primaryColor === 'red' ? 'Critical' : primaryColor === 'yellow' ? 'Warning' : primaryColor === 'blue' ? 'Active' : 'Healthy'}
           </p>
         </div>
       </div>
 
-      {/* Fair Usage Warning */}
+      {/* Fair Usage Warning Banner */}
       {fairUsageWarning && (
-        <div className={`rounded-lg border p-5 ${
-          fairUsageWarning.level === 'critical' ? 'bg-red-50 border-red-200' :
-          fairUsageWarning.level === 'warning' ? 'bg-yellow-50 border-yellow-200' :
-          'bg-blue-50 border-blue-200'
+        <div className={`rounded-lg border-2 p-5 ${
+          fairUsageWarning.level === 'critical' ? 'bg-red-50 border-red-300' :
+          fairUsageWarning.level === 'warning' ? 'bg-yellow-50 border-yellow-300' :
+          'bg-blue-50 border-blue-300'
         }`}>
           <div className="flex items-start gap-3">
-            <AlertTriangle className={`w-6 h-6 flex-shrink-0 mt-0.5 ${
+            <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
               fairUsageWarning.level === 'critical' ? 'text-red-600' :
-              fairUsageWarning.level === 'warning' ? 'text-yellow-600' :
-              'text-blue-600'
+              fairUsageWarning.level === 'warning' ? 'text-yellow-600' : 'text-blue-600'
             }`} />
             <div className="flex-1">
               <h3 className={`font-semibold mb-1 ${
                 fairUsageWarning.level === 'critical' ? 'text-red-900' :
-                fairUsageWarning.level === 'warning' ? 'text-yellow-900' :
-                'text-blue-900'
+                fairUsageWarning.level === 'warning' ? 'text-yellow-900' : 'text-blue-900'
               }`}>
                 {fairUsageWarning.title}
               </h3>
               <p className={`text-sm mb-2 ${
                 fairUsageWarning.level === 'critical' ? 'text-red-800' :
-                fairUsageWarning.level === 'warning' ? 'text-yellow-800' :
-                'text-blue-800'
+                fairUsageWarning.level === 'warning' ? 'text-yellow-800' : 'text-blue-800'
               }`}>
                 {fairUsageWarning.message}
               </p>
-              
-              {/* Throttle Status */}
-              <div className={`flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded ${
-                fairUsageWarning.level === 'critical' ? 'bg-red-100 text-red-800' :
-                fairUsageWarning.level === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-blue-100 text-blue-800'
-              }`}>
-                <Clock className="w-4 h-4" />
-                <span className="font-medium">Current Throttle: {fairUsageWarning.throttle}</span>
-              </div>
-
-              <p className={`text-sm font-medium mb-3 ${
+              <p className={`text-sm font-medium ${
                 fairUsageWarning.level === 'critical' ? 'text-red-900' :
-                fairUsageWarning.level === 'warning' ? 'text-yellow-900' :
-                'text-blue-900'
+                fairUsageWarning.level === 'warning' ? 'text-yellow-900' : 'text-blue-900'
               }`}>
                 {fairUsageWarning.action}
               </p>
-              
-              {outputPercentage >= 80 && (
-                <button 
-                  onClick={() => window.location.href = '/pricing'}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    fairUsageWarning.level === 'critical' 
-                      ? 'bg-red-600 hover:bg-red-700 text-white' 
-                      : fairUsageWarning.level === 'warning'
-                      ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
-                >
-                  {outputPercentage >= 95 ? 'Upgrade Now' : 'View Plans'}
-                </button>
-              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Detailed Usage */}
-      <div className="bg-white rounded-lg border p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Token Usage Breakdown</h3>
-
-        {/* Input Tokens */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">Input Tokens</span>
-            <span className="text-sm text-gray-600">
-              {formatNumber(safeUsage.input_tokens_used)} / {formatNumber(safeUsage.input_tokens_allocated)}
-            </span>
+      {/* Primary breakdown — institution student view */}
+      {isInstitution && (
+        <div className="bg-white rounded-lg border p-6">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-lg font-semibold text-gray-900">Your Monthly Allocation</h3>
+            {usage.institution_name && (
+              <span className="text-xs text-gray-500 flex items-center gap-1">
+                <Building2 size={12} /> {usage.institution_name}
+              </span>
+            )}
           </div>
-          <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-blue-500 rounded-full transition-all duration-500"
-              style={{ width: `${inputPercentage}%` }}
-            />
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            {inputPercentage.toFixed(1)}% used • {formatNumber(safeUsage.input_tokens_allocated - safeUsage.input_tokens_used)} remaining
+          <p className="text-xs text-gray-500 mb-4">
+            Resets on the 1st of each month. Contact your institution admin if you need additional tokens.
           </p>
-        </div>
 
-        {/* Output Tokens */}
-        <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">Output Tokens</span>
+            <span className="text-sm font-medium text-gray-700">Your Tokens This Month</span>
             <span className="text-sm text-gray-600">
-              {formatNumber(safeUsage.output_tokens_used)} / {formatNumber(safeUsage.output_tokens_allocated)}
+              {formatNumber(usage.student_tokens_used)} / {formatNumber(usage.student_tokens_allocated)}
             </span>
           </div>
           <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
-                outputPercentage >= 95 ? 'bg-red-500' :
-                outputPercentage >= 80 ? 'bg-yellow-500' :
-                'bg-green-500'
+                primaryPct >= 95 ? 'bg-red-500' : primaryPct >= 80 ? 'bg-yellow-500' : primaryPct >= 60 ? 'bg-blue-500' : 'bg-green-500'
               }`}
-              style={{ width: `${outputPercentage}%` }}
+              style={{ width: `${primaryPct}%` }}
             />
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            {outputPercentage.toFixed(1)}% used • {formatNumber(safeUsage.output_tokens_allocated - safeUsage.output_tokens_used)} remaining
+            {primaryPct.toFixed(1)}% used • {formatNumber(Math.max(0, usage.student_tokens_allocated - usage.student_tokens_used))} remaining
           </p>
         </div>
+      )}
 
-        {/* Total */}
-        {safeUsage.tokens_allocated > 0 && (
+      {/* Institution pool (secondary context for institution users) */}
+      {isInstitution && (usage.input_tokens_allocated > 0 || usage.output_tokens_allocated > 0) && (
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
+          <h3 className="text-base font-semibold text-gray-900 mb-1">Institution Pool</h3>
+          <p className="text-xs text-gray-500 mb-4">
+            Shared across all members of your institution. Throttling kicks in at 80%+.
+          </p>
+
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-700">Input Tokens</span>
+              <span className="text-sm text-gray-600">
+                {formatNumber(usage.input_tokens_used)} / {formatNumber(usage.input_tokens_allocated)}
+              </span>
+            </div>
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${poolInputPct}%` }} />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">{poolInputPct.toFixed(1)}% used institution-wide</p>
+          </div>
+
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Total Allocation</span>
+              <span className="text-sm text-gray-700">Output Tokens</span>
               <span className="text-sm text-gray-600">
-                {formatNumber(safeUsage.tokens_used)} / {formatNumber(safeUsage.tokens_allocated)}
+                {formatNumber(usage.output_tokens_used)} / {formatNumber(usage.output_tokens_allocated)}
+              </span>
+            </div>
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all duration-500 ${
+                poolOutputPct >= 95 ? 'bg-red-500' : poolOutputPct >= 80 ? 'bg-yellow-500' : 'bg-green-500'
+              }`} style={{ width: `${poolOutputPct}%` }} />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">{poolOutputPct.toFixed(1)}% used institution-wide</p>
+          </div>
+        </div>
+      )}
+
+      {/* Non-institution view — original breakdown layout */}
+      {!isInstitution && usage.tokens_allocated > 0 && (
+        <div className="bg-white rounded-lg border p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Token Usage Breakdown</h3>
+
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Input Tokens</span>
+              <span className="text-sm text-gray-600">
+                {formatNumber(usage.input_tokens_used)} / {formatNumber(usage.input_tokens_allocated)}
               </span>
             </div>
             <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-purple-500 rounded-full transition-all duration-500"
-                style={{ width: `${totalPercentage}%` }}
-              />
+              <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${poolInputPct}%` }} />
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              {totalPercentage.toFixed(1)}% used • {formatNumber(safeUsage.tokens_remaining)} remaining
+              {poolInputPct.toFixed(1)}% used • {formatNumber(Math.max(0, usage.input_tokens_allocated - usage.input_tokens_used))} remaining
             </p>
           </div>
-        )}
-      </div>
 
-      {/* Fair Usage Policy Info */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Output Tokens</span>
+              <span className="text-sm text-gray-600">
+                {formatNumber(usage.output_tokens_used)} / {formatNumber(usage.output_tokens_allocated)}
+              </span>
+            </div>
+            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all duration-500 ${
+                poolOutputPct >= 95 ? 'bg-red-500' : poolOutputPct >= 80 ? 'bg-yellow-500' : 'bg-green-500'
+              }`} style={{ width: `${poolOutputPct}%` }} />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {poolOutputPct.toFixed(1)}% used • {formatNumber(Math.max(0, usage.output_tokens_allocated - usage.output_tokens_used))} remaining
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Fair Usage Policy info */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
         <div className="flex items-start gap-3">
           <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
           <div>
             <h4 className="font-semibold text-blue-900 mb-3">📘 Fair Usage Policy</h4>
-            <div className="space-y-2 text-sm text-blue-800">
-              <p>You have <strong>unlimited queries</strong> within your token allocation. Our fair usage system ensures great experience for everyone:</p>
-              
+            <div className="text-sm text-blue-800 space-y-2">
+              <p>You have <strong>unlimited queries</strong> within your token allocation. To keep things fair:</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                 <div className="bg-white/50 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                    <span className="font-medium text-green-900">0-79%</span>
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    <span className="font-medium text-green-900">0–79%</span>
                   </div>
-                  <p className="text-xs text-gray-700">Full speed, no restrictions ✅</p>
+                  <p className="text-xs text-gray-700">Full speed ✅</p>
                 </div>
-                
                 <div className="bg-white/50 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                    <span className="font-medium text-blue-900">80-89%</span>
+                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    <span className="font-medium text-blue-900">80–89%</span>
                   </div>
-                  <p className="text-xs text-gray-700">Gentle warning, still full speed ⚠️</p>
+                  <p className="text-xs text-gray-700">Notice shown, full speed ⚠️</p>
                 </div>
-                
                 <div className="bg-white/50 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                    <span className="font-medium text-yellow-900">90-94%</span>
+                    <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                    <span className="font-medium text-yellow-900">90–94%</span>
                   </div>
-                  <p className="text-xs text-gray-700">2-second delay per query ⏸️</p>
+                  <p className="text-xs text-gray-700">Per-query token cap reduced</p>
                 </div>
-                
                 <div className="bg-white/50 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                    <span className="font-medium text-orange-900">95-99%</span>
+                    <div className="w-2 h-2 rounded-full bg-orange-500" />
+                    <span className="font-medium text-orange-900">95–99%</span>
                   </div>
-                  <p className="text-xs text-gray-700">5-second throttling 🐌</p>
+                  <p className="text-xs text-gray-700">Stricter token cap per query</p>
                 </div>
               </div>
-              
               <p className="mt-3 text-xs">
-                <strong>Tokens reset monthly</strong> on your renewal date. Upgrade anytime for more capacity.
+                <strong>Tokens reset monthly</strong> on the 1st. {isInstitution ? 'Contact your institution admin for a top-up.' : 'Upgrade anytime for more capacity.'}
               </p>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Usage Tips */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <h4 className="font-semibold text-gray-900 mb-2">💡 Tips to Optimize Token Usage</h4>
-        <ul className="text-sm text-gray-700 space-y-1">
-          <li>• Ask focused questions to reduce output tokens</li>
-          <li>• Use specific book selections instead of searching all books</li>
-          <li>• Output tokens count more toward your limit (67% of budget)</li>
-          <li>• Simple queries use fewer tokens than complex ones</li>
-        </ul>
       </div>
     </div>
   );

@@ -21,7 +21,6 @@ USD_TO_INR = 83
 
 
 def get_openai_pricing(model: str = 'gpt-4o-mini') -> Dict:
-    """Get current OpenAI pricing from database with fallback."""
     try:
         db = get_db()
         pricing = db.table("openai_pricing")\
@@ -29,16 +28,11 @@ def get_openai_pricing(model: str = 'gpt-4o-mini') -> Dict:
             .eq("model_name", model)\
             .eq("is_active", True)\
             .execute()
-
         if pricing.data and len(pricing.data) > 0:
             row = pricing.data[0]
-            return {
-                'input': float(row['input_price_per_1m']),
-                'output': float(row['output_price_per_1m'])
-            }
+            return {'input': float(row['input_price_per_1m']), 'output': float(row['output_price_per_1m'])}
     except Exception as e:
-        print(f"⚠️ openai_pricing lookup failed (using defaults): {e}")
-
+        print(f"⚠️ openai_pricing lookup failed: {e}")
     return OPENAI_PRICING.get(model, OPENAI_PRICING['gpt-4o-mini'])
 
 
@@ -55,17 +49,8 @@ def calculate_openai_cost(input_tokens: int, output_tokens: int, model: str = 'g
     }
 
 
-def save_token_usage(
-    query_id: str,
-    user_id: str,
-    input_tokens: int,
-    output_tokens: int,
-    total_tokens: int,
-    model: str,
-    sources: List[Dict],
-    book_ids: List[str]
-):
-    """Save token usage with cost tracking, publisher revenue, and counter updates."""
+def save_token_usage(query_id: str, user_id: str, input_tokens: int, output_tokens: int,
+                     total_tokens: int, model: str, sources: List[Dict], book_ids: List[str]):
     try:
         db = get_db()
         openai_costs = calculate_openai_cost(input_tokens, output_tokens, model)
@@ -97,7 +82,7 @@ def save_token_usage(
         update_publisher_stats(books_used)
         update_subscription_tokens(user_id, input_tokens, output_tokens, openai_costs)
 
-        print(f"✅ Token usage saved: {output_tokens} output tokens, ₹{total_revenue_paisa/100:.2f} revenue, OpenAI cost: ${openai_costs['total_cost_usd']}")
+        print(f"✅ Token usage saved: {output_tokens} output tokens, ₹{total_revenue_paisa/100:.2f} revenue")
 
     except Exception as e:
         print(f"❌ Error saving token usage: {e}")
@@ -105,7 +90,6 @@ def save_token_usage(
 
 
 def calculate_publisher_split(output_tokens: int, sources: List[Dict], book_ids: List[str]) -> List[Dict]:
-    """Calculate publisher revenue split with royalty-free support."""
     try:
         db = get_db()
         unique_book_ids = set()
@@ -122,9 +106,7 @@ def calculate_publisher_split(output_tokens: int, sources: List[Dict], book_ids:
             try:
                 book_response = db.table("books")\
                     .select("id, title, publisher_id, revenue_share_percentage, is_royalty_free, royalty_percentage")\
-                    .eq("id", book_id)\
-                    .execute()
-
+                    .eq("id", book_id).execute()
                 if book_response.data and len(book_response.data) > 0:
                     book = book_response.data[0]
                     publisher_name = None
@@ -132,12 +114,10 @@ def calculate_publisher_split(output_tokens: int, sources: List[Dict], book_ids:
                     if book.get("publisher_id"):
                         pub_response = db.table("publishers")\
                             .select("name, payout_rate_per_token")\
-                            .eq("id", book["publisher_id"])\
-                            .execute()
+                            .eq("id", book["publisher_id"]).execute()
                         if pub_response.data and len(pub_response.data) > 0:
                             publisher_name = pub_response.data[0]["name"]
                             payout_rate = float(pub_response.data[0].get("payout_rate_per_token", 0.000001))
-
                     books_data.append({
                         "book_id": book["id"],
                         "book_title": book.get("title", "Unknown"),
@@ -153,12 +133,9 @@ def calculate_publisher_split(output_tokens: int, sources: List[Dict], book_ids:
 
         if not books_data:
             return []
-
-        # Distribute output tokens across books equally
         tokens_per_book = output_tokens // len(books_data) if len(books_data) > 0 else 0
         for book in books_data:
             book["tokens_attributed"] = tokens_per_book
-
         return books_data
 
     except Exception as e:
@@ -167,7 +144,6 @@ def calculate_publisher_split(output_tokens: int, sources: List[Dict], book_ids:
 
 
 def update_publisher_stats(books_used: List[Dict]):
-    """Update each publisher's running totals (excludes royalty-free)."""
     try:
         db = get_db()
         publisher_data = {}
@@ -180,7 +156,6 @@ def update_publisher_stats(books_used: List[Dict]):
             tokens = book.get("tokens_attributed", 0)
             payout_rate = book.get("payout_rate_per_token", 0.000001)
             revenue = tokens * payout_rate
-
             if pub_id not in publisher_data:
                 publisher_data[pub_id] = {"tokens": 0, "revenue_rupees": 0}
             publisher_data[pub_id]["tokens"] += tokens
@@ -192,9 +167,7 @@ def update_publisher_stats(books_used: List[Dict]):
             try:
                 current = db.table("publishers")\
                     .select("total_tokens_generated, total_revenue_paisa")\
-                    .eq("id", pub_id)\
-                    .execute()
-
+                    .eq("id", pub_id).execute()
                 if current.data and len(current.data) > 0:
                     current_tokens = current.data[0].get("total_tokens_generated", 0) or 0
                     current_revenue = current.data[0].get("total_revenue_paisa", 0) or 0
@@ -211,17 +184,9 @@ def update_publisher_stats(books_used: List[Dict]):
 
 
 def update_subscription_tokens(user_id: str, input_tokens: int, output_tokens: int, openai_costs: Dict):
-    """
-    Update institution-level subscription token usage AND per-student counter.
-    Uses institution_id fallback if subscription_id isn't set on the user.
-    """
     try:
         db = get_db()
-
-        user_response = db.table("users")\
-            .select("subscription_id, institution_id")\
-            .eq("id", user_id)\
-            .execute()
+        user_response = db.table("users").select("subscription_id, institution_id").eq("id", user_id).execute()
 
         if not user_response.data or len(user_response.data) == 0:
             return
@@ -230,8 +195,7 @@ def update_subscription_tokens(user_id: str, input_tokens: int, output_tokens: i
         subscription_id = user_row.get("subscription_id")
         institution_id = user_row.get("institution_id")
 
-        # ✅ FALLBACK: If user has institution_id but no subscription_id,
-        # look up the institution's active subscription
+        # Fallback: institution user without subscription_id → look up via institution_id
         if not subscription_id and institution_id:
             try:
                 fallback_sub = db.table("subscriptions")\
@@ -239,12 +203,9 @@ def update_subscription_tokens(user_id: str, input_tokens: int, output_tokens: i
                     .eq("institution_id", institution_id)\
                     .eq("is_active", True)\
                     .order("created_at", desc=True)\
-                    .limit(1)\
-                    .execute()
+                    .limit(1).execute()
                 if fallback_sub.data and len(fallback_sub.data) > 0:
                     subscription_id = fallback_sub.data[0]["id"]
-
-                    # Backfill the user record so future queries don't repeat the lookup
                     db.table("users").update({"subscription_id": subscription_id}).eq("id", user_id).execute()
             except Exception as e:
                 print(f"⚠️ Subscription fallback lookup failed: {e}")
@@ -252,12 +213,9 @@ def update_subscription_tokens(user_id: str, input_tokens: int, output_tokens: i
         if not subscription_id:
             return
 
-        # Increment subscription counters
         sub_response = db.table("subscriptions")\
             .select("input_tokens_used, output_tokens_used, tokens_used, queries_used, openai_cost_usd, openai_cost_inr")\
-            .eq("id", subscription_id)\
-            .eq("is_active", True)\
-            .execute()
+            .eq("id", subscription_id).eq("is_active", True).execute()
 
         if not sub_response.data or len(sub_response.data) == 0:
             return
@@ -279,7 +237,6 @@ def update_subscription_tokens(user_id: str, input_tokens: int, output_tokens: i
             "openai_cost_inr": new_openai_cost_inr
         }).eq("id", subscription_id).execute()
 
-        # ✅ NEW: Increment per-student counter for institution users (Phase 2)
         if institution_id:
             update_institution_user_tokens(user_id, institution_id, input_tokens, output_tokens)
             track_mau(user_id, institution_id)
@@ -289,10 +246,6 @@ def update_subscription_tokens(user_id: str, input_tokens: int, output_tokens: i
 
 
 def update_institution_user_tokens(user_id: str, institution_id: str, input_tokens: int, output_tokens: int):
-    """
-    Increment monthly_tokens_used in institution_users for per-student soft cap tracking.
-    Resets are handled by the monthly_reset job (see migration SQL).
-    """
     try:
         db = get_db()
         total = (input_tokens or 0) + (output_tokens or 0)
@@ -302,22 +255,18 @@ def update_institution_user_tokens(user_id: str, institution_id: str, input_toke
         record = db.table("institution_users")\
             .select("id, monthly_tokens_used")\
             .eq("institution_id", institution_id)\
-            .eq("user_id", user_id)\
-            .execute()
+            .eq("user_id", user_id).execute()
 
         if record.data and len(record.data) > 0:
             row = record.data[0]
             new_used = (row.get("monthly_tokens_used") or 0) + total
-            db.table("institution_users").update({
-                "monthly_tokens_used": new_used,
-            }).eq("id", row["id"]).execute()
+            db.table("institution_users").update({"monthly_tokens_used": new_used}).eq("id", row["id"]).execute()
 
     except Exception as e:
         print(f"⚠️ Error updating institution_users counter: {e}")
 
 
 def track_mau(user_id: str, institution_id: str):
-    """Track user as active for current month (RPC call to existing track_mau function)."""
     try:
         db = get_db()
         db.rpc("track_mau", {"p_user_id": user_id, "p_institution_id": institution_id}).execute()
@@ -325,10 +274,21 @@ def track_mau(user_id: str, institution_id: str):
         print(f"⚠️ Error tracking MAU: {e}")
 
 
+# ══════════════════════════════════════════════════════════════════
+# 🆕 ENHANCED: returns per-student cap data for institution users
+# ══════════════════════════════════════════════════════════════════
 def get_user_token_usage(user_id: str, days: int = 30) -> Dict:
-    """Get user's token usage statistics with cost breakdown."""
+    """
+    Get user's token usage statistics with cost breakdown.
+    For institution users, ALSO returns:
+      - student_tokens_allocated, student_tokens_used (per-student soft cap)
+      - institution_id, institution_name
+      - is_institution_user: True
+    """
     try:
         db = get_db()
+
+        # 1. Personal usage from token_usage table (this user's actual queries)
         usage_response = db.table("token_usage")\
             .select("input_tokens, output_tokens, total_tokens, openai_total_cost_usd, openai_total_cost_inr")\
             .eq("user_id", user_id)\
@@ -347,43 +307,87 @@ def get_user_token_usage(user_id: str, days: int = 30) -> Dict:
                 openai_cost_inr += record.get("openai_total_cost_inr", 0) or 0
                 query_count += 1
 
-        user_response = db.table("users").select("subscription_id").eq("id", user_id).execute()
-        tokens_allocated = tokens_used = 0
-        input_tokens_allocated = output_tokens_allocated = 0
-        input_tokens_used = output_tokens_used = 0
+        # 2. Subscription / institution context
+        user_response = db.table("users")\
+            .select("subscription_id, institution_id")\
+            .eq("id", user_id).execute()
 
-        if user_response.data and len(user_response.data) > 0:
-            subscription_id = user_response.data[0].get("subscription_id")
-            if subscription_id:
-                sub_response = db.table("subscriptions")\
-                    .select("tokens_allocated, tokens_used, input_tokens_allocated, output_tokens_allocated, input_tokens_used, output_tokens_used")\
-                    .eq("id", subscription_id)\
-                    .execute()
-                if sub_response.data and len(sub_response.data) > 0:
-                    s = sub_response.data[0]
-                    tokens_allocated = s.get("tokens_allocated", 0) or 0
-                    tokens_used = s.get("tokens_used", 0) or 0
-                    input_tokens_allocated = s.get("input_tokens_allocated", 0) or 0
-                    output_tokens_allocated = s.get("output_tokens_allocated", 0) or 0
-                    input_tokens_used = s.get("input_tokens_used", 0) or 0
-                    output_tokens_used = s.get("output_tokens_used", 0) or 0
-
-        return {
+        # Defaults for non-institution users / users without subscription
+        result = {
             "total_input_tokens": total_input,
             "total_output_tokens": total_output,
             "total_tokens": total_tokens,
             "query_count": query_count,
-            "input_tokens_allocated": input_tokens_allocated,
-            "output_tokens_allocated": output_tokens_allocated,
-            "input_tokens_used": input_tokens_used,
-            "output_tokens_used": output_tokens_used,
-            "tokens_allocated": tokens_allocated,
-            "tokens_used": tokens_used,
-            "tokens_remaining": max(0, tokens_allocated - tokens_used) if tokens_allocated else None,
+            "input_tokens_allocated": 0,
+            "output_tokens_allocated": 0,
+            "input_tokens_used": 0,
+            "output_tokens_used": 0,
+            "tokens_allocated": 0,
+            "tokens_used": 0,
+            "tokens_remaining": None,
             "openai_cost_usd": round(openai_cost_usd, 2),
             "openai_cost_inr": openai_cost_inr,
             "days": days,
+            # ── Institution-specific (zero/None unless user is an institution student) ──
+            "is_institution_user": False,
+            "institution_id": None,
+            "institution_name": None,
+            "student_tokens_allocated": 0,
+            "student_tokens_used": 0,
+            "student_usage_percent": 0,
         }
+
+        if not user_response.data or len(user_response.data) == 0:
+            return result
+
+        user_row = user_response.data[0]
+        subscription_id = user_row.get("subscription_id")
+        institution_id = user_row.get("institution_id")
+
+        # 3. Subscription-level data
+        if subscription_id:
+            sub_response = db.table("subscriptions")\
+                .select("tokens_allocated, tokens_used, input_tokens_allocated, output_tokens_allocated, input_tokens_used, output_tokens_used")\
+                .eq("id", subscription_id).execute()
+            if sub_response.data and len(sub_response.data) > 0:
+                s = sub_response.data[0]
+                result["tokens_allocated"] = s.get("tokens_allocated", 0) or 0
+                result["tokens_used"] = s.get("tokens_used", 0) or 0
+                result["input_tokens_allocated"] = s.get("input_tokens_allocated", 0) or 0
+                result["output_tokens_allocated"] = s.get("output_tokens_allocated", 0) or 0
+                result["input_tokens_used"] = s.get("input_tokens_used", 0) or 0
+                result["output_tokens_used"] = s.get("output_tokens_used", 0) or 0
+                if result["tokens_allocated"]:
+                    result["tokens_remaining"] = max(0, result["tokens_allocated"] - result["tokens_used"])
+
+        # 4. 🆕 Per-student data for institution users
+        if institution_id:
+            result["is_institution_user"] = True
+            result["institution_id"] = institution_id
+
+            try:
+                # Institution name
+                inst_response = db.table("institutions")\
+                    .select("name").eq("id", institution_id).execute()
+                if inst_response.data and len(inst_response.data) > 0:
+                    result["institution_name"] = inst_response.data[0].get("name")
+
+                # Per-student cap from institution_users
+                iu_response = db.table("institution_users")\
+                    .select("monthly_tokens_allocated, monthly_tokens_used")\
+                    .eq("institution_id", institution_id)\
+                    .eq("user_id", user_id).execute()
+                if iu_response.data and len(iu_response.data) > 0:
+                    iu = iu_response.data[0]
+                    student_alloc = int(iu.get("monthly_tokens_allocated") or 0)
+                    student_used = int(iu.get("monthly_tokens_used") or 0)
+                    result["student_tokens_allocated"] = student_alloc
+                    result["student_tokens_used"] = student_used
+                    result["student_usage_percent"] = round((student_used / student_alloc) * 100, 1) if student_alloc > 0 else 0
+            except Exception as e:
+                print(f"⚠️ Could not fetch institution context: {e}")
+
+        return result
 
     except Exception as e:
         print(f"⚠️ Error getting user token usage: {e}")
