@@ -223,13 +223,16 @@ def check_cooldown(user_id: str, tier: str, limits: Dict) -> Dict:
 def check_institution_pool(institution_id: str) -> Dict:
     """
     Check institution pool usage (input + output combined, take the higher %).
-    Returns: {allowed, max_tokens, usage_percent, warning, reason?}
+    Returns: {allowed, max_tokens, usage_percent, warning, reason?, base_max_tokens}
+
+    base_max_tokens reflects the institution admin's configured max_tokens_per_request
+    when the pool is below 80% utilization. Above 80%, throttle caps kick in.
     """
     try:
         db = get_db()
 
         sub_query = db.table("subscriptions")\
-            .select("input_tokens_allocated, output_tokens_allocated, input_tokens_used, output_tokens_used")\
+            .select("input_tokens_allocated, output_tokens_allocated, input_tokens_used, output_tokens_used, max_tokens_per_request")\
             .eq("institution_id", institution_id)\
             .eq("is_active", True)\
             .order("created_at", desc=True)\
@@ -245,6 +248,15 @@ def check_institution_pool(institution_id: str) -> Dict:
         input_used = _to_int(sub.get("input_tokens_used"))
         output_used = _to_int(sub.get("output_tokens_used"))
 
+        # ✅ Phase B: Use admin-configured max_tokens_per_request from subscription;
+        # fall back to hardcoded default only if not configured
+        configured_cap = _to_int(
+            sub.get("max_tokens_per_request"),
+            default=USAGE_LIMITS['institution']['max_tokens_per_query']
+        )
+        if configured_cap <= 0:
+            configured_cap = USAGE_LIMITS['institution']['max_tokens_per_query']
+
         input_pct = (input_used / input_alloc * 100) if input_alloc > 0 else 0
         output_pct = (output_used / output_alloc * 100) if output_alloc > 0 else 0
         usage_percent = max(input_pct, output_pct)
@@ -259,16 +271,18 @@ def check_institution_pool(institution_id: str) -> Dict:
                 'max_tokens': 0,
             }
         elif usage_percent >= 95:
-            return {'allowed': True, 'max_tokens': limits['throttle_at_95_percent'], 'usage_percent': usage_percent,
+            # Cap at the smaller of: configured cap, or 95% throttle limit
+            return {'allowed': True, 'max_tokens': min(configured_cap, limits['throttle_at_95_percent']), 'usage_percent': usage_percent,
                     'warning': f"⚠️ Critical: Institution has used {usage_percent:.0f}% of monthly tokens."}
         elif usage_percent >= 90:
-            return {'allowed': True, 'max_tokens': limits['throttle_at_90_percent'], 'usage_percent': usage_percent,
+            return {'allowed': True, 'max_tokens': min(configured_cap, limits['throttle_at_90_percent']), 'usage_percent': usage_percent,
                     'warning': f"⚠️ Warning: Institution has used {usage_percent:.0f}% of monthly tokens."}
         elif usage_percent >= 80:
-            return {'allowed': True, 'max_tokens': limits['throttle_at_80_percent'], 'usage_percent': usage_percent,
+            return {'allowed': True, 'max_tokens': min(configured_cap, limits['throttle_at_80_percent']), 'usage_percent': usage_percent,
                     'warning': f"💡 Notice: Institution has used {usage_percent:.0f}% of monthly tokens."}
         else:
-            return {'allowed': True, 'max_tokens': limits['max_tokens_per_query'], 'usage_percent': usage_percent}
+            # Below 80%: use full admin-configured cap
+            return {'allowed': True, 'max_tokens': configured_cap, 'usage_percent': usage_percent}
 
     except Exception as e:
         print(f"⚠️ Error checking institution pool: {e}")

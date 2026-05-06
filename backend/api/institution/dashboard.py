@@ -23,6 +23,7 @@ class UpdateInstitutionSettingsRequest(BaseModel):
     max_tokens_per_request: Optional[int] = None    # 500-8000
     rate_limit_per_minute: Optional[int] = None     # 5-30
     change_reason: str
+    confirmed: bool = False  # ✅ Set true on the second call after admin reviews impact preview
 
 # ══════════════════════════════════════════════════════════════════
 # ENDPOINTS
@@ -271,17 +272,51 @@ async def update_institution_settings(request: UpdateInstitutionSettingsRequest)
                 "requires_approval": validation.requires_approval
             }
         
-        # If requires confirmation, return validation result
-        if validation.requires_confirmation:
+        # ═══════════════════════════════════════════════════════════
+        # 🆕 Build impact preview — admin sees this before confirming
+        # ═══════════════════════════════════════════════════════════
+        old_cap_pct = float(sub.get("student_cap_percentage") or 0.5)
+        new_cap_pct = float(new_settings["student_cap_percentage"])
+        
+        old_per_student_alloc = int(total_quota * (old_cap_pct / 100.0))
+        new_per_student_alloc = int(total_quota * (new_cap_pct / 100.0))
+        
+        # Count active students who'll be affected
+        active_students_query = db.table("institution_users")\
+            .select("id", count="exact")\
+            .eq("institution_id", request.institution_id)\
+            .eq("is_active", True)\
+            .execute()
+        affected_count = active_students_query.count or 0
+        
+        impact_preview = {
+            "per_student_allocation_before": old_per_student_alloc,
+            "per_student_allocation_after": new_per_student_alloc,
+            "delta_tokens_per_student": new_per_student_alloc - old_per_student_alloc,
+            "affected_active_students": affected_count,
+            "max_tokens_per_request_before": int(sub.get("max_tokens_per_request") or 0),
+            "max_tokens_per_request_after": int(new_settings["max_tokens_per_request"]),
+            "rate_limit_per_minute_before": int(sub.get("rate_limit_per_minute") or 0),
+            "rate_limit_per_minute_after": int(new_settings["rate_limit_per_minute"]),
+        }
+        
+        # ═══════════════════════════════════════════════════════════
+        # First-call gate: if backend says "needs confirmation" AND
+        # admin hasn't confirmed yet, return preview without saving
+        # ═══════════════════════════════════════════════════════════
+        if validation.requires_confirmation and not request.confirmed:
             return {
                 "success": False,
                 "requires_confirmation": True,
                 "warnings": validation.warnings,
                 "quota_impact": validation.quota_impact_message,
-                "estimated_days": validation.estimated_days_until_exhaustion
+                "estimated_days": validation.estimated_days_until_exhaustion,
+                "impact_preview": impact_preview,
             }
         
-        # Update settings
+        # ═══════════════════════════════════════════════════════════
+        # Save: subscription settings
+        # ═══════════════════════════════════════════════════════════
         db.table("subscriptions").update({
             "student_cap_percentage": new_settings["student_cap_percentage"],
             "max_tokens_per_request": new_settings["max_tokens_per_request"],
@@ -291,8 +326,32 @@ async def update_institution_settings(request: UpdateInstitutionSettingsRequest)
             "settings_change_reason": request.change_reason,
         }).eq("id", sub["id"]).execute()
         
-        # Log activity
-        # Log activity (non-fatal)
+        # ═══════════════════════════════════════════════════════════
+        # 🆕 Phase A: Propagate per-student cap to existing students
+        # Option A behavior — update monthly_tokens_allocated only,
+        # leave monthly_tokens_used unchanged. Their % used naturally
+        # adjusts. Heavy users get more headroom; light users see lower %.
+        # ═══════════════════════════════════════════════════════════
+        propagation_result = {"updated_students": 0, "error": None}
+        if new_per_student_alloc != old_per_student_alloc:
+            try:
+                update_result = db.table("institution_users")\
+                    .update({
+                        "monthly_tokens_allocated": new_per_student_alloc,
+                        "updated_at": datetime.utcnow().isoformat(),
+                    })\
+                    .eq("institution_id", request.institution_id)\
+                    .eq("is_active", True)\
+                    .execute()
+                propagation_result["updated_students"] = len(update_result.data or [])
+            except Exception as e:
+                # Non-fatal: subscription is already saved, but flag the issue
+                propagation_result["error"] = str(e)
+                print(f"⚠️ Per-student allocation propagation failed: {e}")
+        
+        # ═══════════════════════════════════════════════════════════
+        # Activity log (non-fatal, via centralized helper)
+        # ═══════════════════════════════════════════════════════════
         from utils.activity_log import log_institution_activity
         log_institution_activity(
             db,
@@ -301,10 +360,16 @@ async def update_institution_settings(request: UpdateInstitutionSettingsRequest)
             user_name=request.admin_name,
             action_type="settings_updated",
             action_description="Updated FUP settings",
-            action_details=new_settings,
+            action_details={
+                **new_settings,
+                "impact": impact_preview,
+                "propagation": propagation_result,
+            },
         )
         
-        # Create audit record
+        # ═══════════════════════════════════════════════════════════
+        # Audit record
+        # ═══════════════════════════════════════════════════════════
         db.table("institution_settings_audit").insert({
             "institution_id": request.institution_id,
             "subscription_id": sub["id"],
@@ -318,7 +383,9 @@ async def update_institution_settings(request: UpdateInstitutionSettingsRequest)
         return {
             "success": True,
             "message": "Settings updated successfully",
-            "new_settings": new_settings
+            "new_settings": new_settings,
+            "impact_preview": impact_preview,
+            "propagation": propagation_result,
         }
     
     except HTTPException:
