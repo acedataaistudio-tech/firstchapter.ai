@@ -457,15 +457,17 @@ function Sidebar({ view, onSetView }: any) {
         const response = await fetch(`/api/usage/tokens?user_id=${user.id}&days=30`);
         const data = await response.json();
         
-        const totalAllocated = (data.tokens_allocated || 0);
-        const totalUsed = (data.total_input_tokens || 0) + (data.total_output_tokens || 0);
-        
-        if (totalAllocated > 0) {
-          const percentage = Math.round((totalUsed / totalAllocated) * 100);
-          setTokenUsagePercent(Math.min(percentage, 100));
-        } else {
-          setTokenUsagePercent(0);
-        }
+        let percentage = 0;
+
+if (data.is_institution_user) {
+  // Institution students: show per-student cap percentage (matches dashboard)
+  percentage = Math.round(data.student_usage_percent || 0);
+} else if (data.tokens_allocated > 0) {
+  // Individual paid users: show subscription-level usage
+  percentage = Math.round(((data.tokens_used || 0) / data.tokens_allocated) * 100);
+}
+
+setTokenUsagePercent(Math.min(percentage, 100));
       } catch (error) {
         console.error('Failed to fetch token usage:', error);
         setTokenUsagePercent(0);
