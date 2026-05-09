@@ -3,7 +3,6 @@ import { useUser } from '@clerk/nextjs';
 import { Users, TrendingUp, Package, Clock, AlertCircle, User, ShoppingCart } from 'lucide-react';
 import { StudentManagement } from './StudentManagement';
 import { FUPSettings } from './FUPSettings';
-import { ActivityLog } from './ActivityLog';
 import { PurchaseMAUModal } from './PurchaseMAUModal';
 
 const API_BASE_URL = 'https://firstchapterai-production.up.railway.app';
@@ -85,6 +84,23 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
           <div style={{ fontSize: '12px', color: '#888780', marginTop: '4px' }}>
             {(subscription.total_used / 1000000).toFixed(1)}M / {(subscription.total_allocated / 1000000).toFixed(1)}M tokens
           </div>
+          {/* Input/Output breakdown */}
+          <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f0efe8', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div>
+              <div style={{ fontSize: '10px', color: '#888780', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Input</div>
+              <div style={{ fontSize: '13px', fontWeight: '600', color: '#378ADD', marginTop: '2px' }}>
+                {(subscription.input_tokens_used / 1000000).toFixed(1)}M
+                <span style={{ fontWeight: '400', color: '#888780' }}> / {(subscription.input_tokens_allocated / 1000000000).toFixed(2)}B</span>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '10px', color: '#888780', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Output</div>
+              <div style={{ fontSize: '13px', fontWeight: '600', color: '#9B59B6', marginTop: '2px' }}>
+                {(subscription.output_tokens_used / 1000000).toFixed(1)}M
+                <span style={{ fontWeight: '400', color: '#888780' }}> / {(subscription.output_tokens_allocated / 1000000).toFixed(0)}M</span>
+              </div>
+            </div>
+          </div>
         </div>
         
         <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e4dc' }}>
@@ -121,7 +137,6 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
             { id: 'overview', label: 'Overview' },
             { id: 'students', label: 'Students' },
             { id: 'settings', label: 'Settings' },
-            { id: 'activity', label: 'Activity' },
             { id: 'profile', label: 'Profile' },
           ].map((tab) => (
             <button
@@ -257,7 +272,6 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
           )}
           {activeTab === 'students' && <StudentManagement institutionId={institutionId} />}
           {activeTab === 'settings' && <FUPSettings institutionId={institutionId} currentSettings={data.settings} onUpdate={loadDashboard} />}
-          {activeTab === 'activity' && <ActivityLog activity={activity} />}
           {activeTab === 'profile' && (
             <div style={{ maxWidth: '800px' }}>
               <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '24px' }}>Institution Profile</h2>
@@ -389,6 +403,35 @@ export function InstitutionDashboard({ institutionId }: DashboardProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Account Security */}
+              <div style={{ background: '#f9f9f7', padding: '20px', borderRadius: '12px', marginTop: '20px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>Account Security</h3>
+                <p style={{ fontSize: '13px', color: '#888780', marginBottom: '16px' }}>
+                  Manage your sign-in credentials. Opens your account profile in a new view.
+                </p>
+                <button
+                  onClick={() => { window.location.href = '/user-profile'; }}
+                  style={{
+                    padding: '10px 20px',
+                    background: 'white',
+                    color: '#2C2C2A',
+                    border: '1px solid #e5e4dc',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#f0efe8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'white';
+                  }}
+                >
+                  Reset Password
+                </button>
               </div>
             </div>
           )}
