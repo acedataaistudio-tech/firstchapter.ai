@@ -302,19 +302,60 @@ async def approve_or_reject_student(request: StudentApprovalRequest):
                 except Exception as e:
                     print(f"⚠️ Could not allocate institution_users tokens: {e}")
 
-            from utils.activity_log import log_institution_activity
-            log_institution_activity(
-                db,
-                institution_id=student_data["institution_id"],
-                user_id=request.admin_user_id,
-                user_name=request.admin_name or "Institution Admin",
-                action_type="student_approved",
-                action_description=f"Approved student: {student_data['student_name']}",
-                action_details={
-                    "student_id": request.student_id,
-                    "student_email": student_data.get("student_email"),
-                },
-            )
+            try:
+                db.rpc("log_institution_activity", {
+                    "p_institution_id": student_data["institution_id"],
+                    "p_user_id": request.admin_user_id,
+                    "p_user_name": request.admin_name or "Institution Admin",
+                    "p_action_type": "student_approved",
+                    "p_action_description": f"Approved student: {student_data['student_name']}",
+                    "p_related_entity_type": "student",
+                    "p_related_entity_id": request.student_id,
+                }).execute()
+            except Exception as e:
+                print(f"⚠️ Activity log failed (non-fatal): {e}")
+
+            # ✉️ Send student approval welcome email (non-fatal)
+            try:
+                from utils.email_service import send_email
+                from utils.email_templates import build_student_approved_email
+
+                # Look up institution name
+                inst_name = "your institution"
+                try:
+                    inst_query = db.table("institutions")\
+                        .select("name")\
+                        .eq("id", student_data["institution_id"])\
+                        .single()\
+                        .execute()
+                    if inst_query.data:
+                        inst_name = inst_query.data.get("name") or inst_name
+                except Exception:
+                    pass
+
+                # Use the student_allocation we computed above (if available)
+                token_alloc = 0
+                try:
+                    token_alloc = int(student_allocation) if subscription_data else 0
+                except Exception:
+                    token_alloc = 0
+
+                if student_data.get("student_email"):
+                    email = build_student_approved_email(
+                        student_name=student_data["student_name"],
+                        institution_name=inst_name,
+                        validity_years=request.validity_years or 0,
+                        monthly_token_allocation=token_alloc,
+                    )
+                    send_email(
+                        to=student_data["student_email"],
+                        subject=email["subject"],
+                        html=email["html"],
+                        text=email["text"],
+                        tags=email.get("tags"),
+                    )
+            except Exception as e:
+                print(f"⚠️ Student approval email skipped (non-fatal): {e}")
 
             validity_msg = f" (access valid for {request.validity_years} year{'s' if request.validity_years != 1 else ''})" if request.validity_years else ""
             message = f"Student {student_data['student_name']} has been approved!{validity_msg}"
@@ -329,19 +370,53 @@ async def approve_or_reject_student(request: StudentApprovalRequest):
                 "is_active": False,
             }).eq("id", request.student_id).execute()
 
-            from utils.activity_log import log_institution_activity
-            log_institution_activity(
-                db,
-                institution_id=student_data["institution_id"],
-                user_id=request.admin_user_id,
-                user_name=request.admin_name or "Institution Admin",
-                action_type="student_rejected",
-                action_description=f"Rejected student: {student_data['student_name']}",
-                action_details={
-                    "student_id": request.student_id,
-                    "rejection_reason": request.rejection_reason,
-                },
-            )
+            try:
+                db.rpc("log_institution_activity", {
+                    "p_institution_id": student_data["institution_id"],
+                    "p_user_id": request.admin_user_id,
+                    "p_user_name": request.admin_name or "Institution Admin",
+                    "p_action_type": "student_rejected",
+                    "p_action_description": f"Rejected student: {student_data['student_name']}",
+                    "p_related_entity_type": "student",
+                    "p_related_entity_id": request.student_id,
+                    "p_details": {"rejection_reason": request.rejection_reason}
+                }).execute()
+            except Exception as e:
+                print(f"⚠️ Activity log failed (non-fatal): {e}")
+
+            # ✉️ Send student rejection email (non-fatal)
+            try:
+                from utils.email_service import send_email
+                from utils.email_templates import build_student_rejected_email
+
+                # Look up institution name
+                inst_name = "your institution"
+                try:
+                    inst_query = db.table("institutions")\
+                        .select("name")\
+                        .eq("id", student_data["institution_id"])\
+                        .single()\
+                        .execute()
+                    if inst_query.data:
+                        inst_name = inst_query.data.get("name") or inst_name
+                except Exception:
+                    pass
+
+                if student_data.get("student_email"):
+                    email = build_student_rejected_email(
+                        student_name=student_data["student_name"],
+                        institution_name=inst_name,
+                        reason=request.rejection_reason,
+                    )
+                    send_email(
+                        to=student_data["student_email"],
+                        subject=email["subject"],
+                        html=email["html"],
+                        text=email["text"],
+                        tags=email.get("tags"),
+                    )
+            except Exception as e:
+                print(f"⚠️ Student rejection email skipped (non-fatal): {e}")
 
             message = f"Student {student_data['student_name']} application has been rejected."
 

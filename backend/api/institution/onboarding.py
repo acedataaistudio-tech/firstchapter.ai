@@ -300,6 +300,26 @@ async def submit_institution_application(request: InstitutionOnboardingRequest):
         except:
             # Notification failure shouldn't block application
             pass
+
+        # ✉️ Send "application received" email (non-fatal)
+        try:
+            from utils.email_service import send_email
+            from utils.email_templates import build_institution_application_received_email
+
+            if request.contact_email:
+                email = build_institution_application_received_email(
+                    contact_name=request.contact_person_name or "Administrator",
+                    institution_name=institution_name,
+                )
+                send_email(
+                    to=request.contact_email,
+                    subject=email["subject"],
+                    html=email["html"],
+                    text=email["text"],
+                    tags=email.get("tags"),
+                )
+        except Exception as e:
+            print(f"⚠️ Application received email skipped (non-fatal): {e}")
         
         return {
             "success": True,

@@ -304,6 +304,29 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_a
                 "p_related_entity_type": "institution",
                 "p_related_entity_id": request.institution_id
             }).execute()
+
+            # ✉️ Send approval email (non-fatal)
+            try:
+                from utils.email_service import send_email
+                from utils.email_templates import build_institution_approved_email
+
+                contact_email = institution.get("contact_email")
+                if contact_email:
+                    email = build_institution_approved_email(
+                        contact_name=institution.get("contact_person_name") or "Administrator",
+                        institution_name=institution.get("name") or "your institution",
+                        package_name=package.get("name") or "Institution",
+                        free_readers=int(features.get("free_mau", 0) or 0),
+                    )
+                    send_email(
+                        to=contact_email,
+                        subject=email["subject"],
+                        html=email["html"],
+                        text=email["text"],
+                        tags=email.get("tags"),
+                    )
+            except Exception as e:
+                print(f"⚠️ Institution approval email skipped (non-fatal): {e}")
             
             return {
                 "success": True,
@@ -320,9 +343,9 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_a
                 "is_active": False
             }).eq("id", request.institution_id).execute()
             
-            # Get institution for notification
+            # Get institution for notification + email
             institution_result = db.table("institutions")\
-                .select("clerk_user_id")\
+                .select("clerk_user_id, contact_email, contact_person_name, name")\
                 .eq("id", request.institution_id)\
                 .single()\
                 .execute()
@@ -341,6 +364,29 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_a
                     "p_related_entity_type": "institution",
                     "p_related_entity_id": request.institution_id
                 }).execute()
+
+            # ✉️ Send rejection email (non-fatal)
+            try:
+                from utils.email_service import send_email
+                from utils.email_templates import build_institution_rejected_email
+
+                inst_data = institution_result.data or {}
+                contact_email = inst_data.get("contact_email")
+                if contact_email:
+                    email = build_institution_rejected_email(
+                        contact_name=inst_data.get("contact_person_name") or "Administrator",
+                        institution_name=inst_data.get("name") or "your institution",
+                        reason=request.rejection_reason,
+                    )
+                    send_email(
+                        to=contact_email,
+                        subject=email["subject"],
+                        html=email["html"],
+                        text=email["text"],
+                        tags=email.get("tags"),
+                    )
+            except Exception as e:
+                print(f"⚠️ Institution rejection email skipped (non-fatal): {e}")
             
             return {
                 "success": True,

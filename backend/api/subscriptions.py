@@ -91,6 +91,55 @@ async def create_subscription(
             raise HTTPException(status_code=500, detail="Failed to create subscription")
         
         subscription = result.data[0]
+
+        # ✉️ Send welcome email (non-fatal — never blocks subscription creation)
+        try:
+            from utils.email_service import send_email
+            from utils.email_templates import build_reader_welcome_email, build_reader_payment_receipt_email
+
+            # Look up user details for personalization
+            user_row = db.table("users").select("email, full_name").eq("id", request.user_id).execute()
+            user_email = None
+            user_name = "there"
+            if user_row.data and len(user_row.data) > 0:
+                user_email = user_row.data[0].get("email")
+                user_name = user_row.data[0].get("full_name") or user_name
+
+            is_paid = price_paise > 0
+
+            if user_email:
+                # Welcome email
+                welcome = build_reader_welcome_email(
+                    user_name=user_name,
+                    package_name=package["name"],
+                    is_paid=is_paid,
+                )
+                send_email(
+                    to=user_email,
+                    subject=welcome["subject"],
+                    html=welcome["html"],
+                    text=welcome["text"],
+                    tags=welcome.get("tags"),
+                )
+
+                # Payment receipt for paid plans only
+                if is_paid and request.payment_id:
+                    receipt = build_reader_payment_receipt_email(
+                        user_name=user_name,
+                        package_name=package["name"],
+                        amount_inr=price_paise // 100,  # paise → rupees
+                        payment_id=request.payment_id,
+                        billing_cycle="monthly",
+                    )
+                    send_email(
+                        to=user_email,
+                        subject=receipt["subject"],
+                        html=receipt["html"],
+                        text=receipt["text"],
+                        tags=receipt.get("tags"),
+                    )
+        except Exception as e:
+            print(f"⚠️ Welcome email skipped (non-fatal): {e}")
         
         return {
             "success": True,
