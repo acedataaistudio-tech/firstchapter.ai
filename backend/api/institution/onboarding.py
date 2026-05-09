@@ -400,9 +400,12 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest):
                     .execute()
                 
                 if package.data:
-                    # Calculate token split (34% input, 66% output)
-                    input_tokens = int(request.tokens_allocated * 0.34)
-                    output_tokens = int(request.tokens_allocated * 0.66)
+                    # ✅ Formula-driven token allocation from package's yearly price.
+                    # Institutional packages have price_yearly stored as WHOLE RUPEES.
+                    from utils.token_economics import compute_token_allocation_from_rupees
+
+                    price_yearly_rupees = package.data.get("price_yearly", 0) or 0
+                    input_tokens, output_tokens = compute_token_allocation_from_rupees(price_yearly_rupees)
                     
                     # Calculate end date (1 year from now)
                     start_date = datetime.utcnow()

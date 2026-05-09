@@ -62,11 +62,14 @@ async def create_subscription(
             end_date = start_date + timedelta(days=365)
         
         # 4. Create subscription record
-        # Calculate input/output token split from total token_limit
-        # Ratio: 34% input, 66% output (e.g., 17K/33K for 50K total)
-        total_tokens = package.get("token_limit", 0) or 0
-        input_tokens = int(total_tokens * 0.34)
-        output_tokens = int(total_tokens * 0.66)
+        # ✅ Formula-driven token allocation from price.
+        # See backend/utils/token_economics.py for the pricing model.
+        # Falls back to Free tier (50K) when price = 0.
+        from utils.token_economics import compute_token_allocation
+
+        price_paise = package.get("price_monthly", 0) or 0
+        input_tokens, output_tokens = compute_token_allocation(price_paise, billing_period="monthly")
+        total_tokens = input_tokens + output_tokens
         
         subscription_data = {
             "user_id": request.user_id,

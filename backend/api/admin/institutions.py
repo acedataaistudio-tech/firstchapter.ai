@@ -244,6 +244,13 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_a
             }).eq("id", request.institution_id).execute()
             
             # Create subscription with separate input/output token allocation
+            # ✅ Formula-driven token allocation from package's yearly price.
+            # Institutional packages have price_yearly stored as WHOLE RUPEES.
+            from utils.token_economics import compute_token_allocation_from_rupees
+
+            price_yearly_rupees = package.get("price_yearly", 0) or 0
+            input_tokens, output_tokens = compute_token_allocation_from_rupees(price_yearly_rupees)
+
             subscription_data = {
                 "id": str(uuid.uuid4()),
                 "institution_id": request.institution_id,
@@ -252,9 +259,9 @@ async def approve_or_reject_institution(request: InstitutionApprovalRequest, x_a
                 "type": "institution",
                 "is_active": True,
                 
-                # Separate token allocations
-                "input_tokens_allocated": int(features.get('input_tokens', 0)),
-                "output_tokens_allocated": int(features.get('output_tokens', 0)),
+                # Separate token allocations (formula-derived from price)
+                "input_tokens_allocated": input_tokens,
+                "output_tokens_allocated": output_tokens,
                 "input_tokens_used": 0,
                 "output_tokens_used": 0,
                 
