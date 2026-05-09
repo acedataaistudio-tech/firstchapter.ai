@@ -365,11 +365,42 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
                 <div style={{ fontSize: '15px', fontWeight: '600' }}>{student.student_name}</div>
                 <div style={{ fontSize: '13px', color: '#888780' }}>{student.student_email}</div>
 
-                {/* Show roll number / department if present */}
-                {(student.student_roll_number || student.student_department) && (
+                {/* Verification panel — emphasized for PENDING applications */}
+                {student.application_status === 'pending' && (student.student_roll_number || student.year_of_admission) && (
+                  <div style={{
+                    background: '#FFFBEC',
+                    border: '1px solid #FFE4A3',
+                    borderRadius: '8px',
+                    padding: '10px 12px',
+                    marginTop: '8px',
+                    fontSize: '12px',
+                    color: '#8B6914',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '4px 16px',
+                  }}>
+                    <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, width: '100%', marginBottom: '2px', color: '#B8860B' }}>
+                      Verify against your records
+                    </div>
+                    {student.student_roll_number && (
+                      <span><strong>Roll #:</strong> {student.student_roll_number}</span>
+                    )}
+                    {student.year_of_admission && (
+                      <span><strong>Year of admission:</strong> {student.year_of_admission}</span>
+                    )}
+                    {student.student_department && (
+                      <span><strong>Dept:</strong> {student.student_department}</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Compact display for approved/rejected (less prominent) */}
+                {student.application_status !== 'pending' && (student.student_roll_number || student.student_department || student.year_of_admission) && (
                   <div style={{ fontSize: '12px', color: '#888780', marginTop: '4px' }}>
                     {student.student_roll_number && <span>Roll: {student.student_roll_number}</span>}
-                    {student.student_roll_number && student.student_department && <span> · </span>}
+                    {student.student_roll_number && student.year_of_admission && <span> · </span>}
+                    {student.year_of_admission && <span>Joined: {student.year_of_admission}</span>}
+                    {(student.student_roll_number || student.year_of_admission) && student.student_department && <span> · </span>}
                     {student.student_department && <span>{student.student_department}</span>}
                   </div>
                 )}

@@ -56,9 +56,26 @@ export default function ReaderOnboarding() {
   const [reason, setReason] = useState("");
   const [subjects, setSubjects] = useState<string[]>([]);
 
+  // Step 3 — institution verification (only used when applying to an institution)
+  const [verificationName, setVerificationName] = useState("");
+  const [admissionNumber, setAdmissionNumber] = useState("");
+  const [yearOfAdmission, setYearOfAdmission] = useState<number | "">("");
+  const [verificationError, setVerificationError] = useState<string>("");
+
+  // Year-of-admission dropdown range: current year down to 6 years back
+  const currentYear = new Date().getFullYear();
+  const admissionYears = Array.from({ length: 7 }, (_, i) => currentYear - i);
+
   useEffect(() => {
     if (!isLoaded || !user) return;
   }, [isLoaded, user]);
+
+  // Pre-fill verification name from Clerk profile when stepping into Step 3
+  useEffect(() => {
+    if (step === 3 && user && !verificationName) {
+      setVerificationName(user.fullName || user.firstName || "");
+    }
+  }, [step, user, verificationName]);
 
   const toggleSubject = (subject: string) => {
     setSubjects(prev =>
@@ -93,6 +110,7 @@ export default function ReaderOnboarding() {
       return;
     }
 
+    // Save profile metadata to Clerk first (always)
     setLoading(true);
     try {
       const updateData: any = {
@@ -111,44 +129,78 @@ export default function ReaderOnboarding() {
       };
 
       await user.update(updateData);
-      
-      // ✨ NEW FLOW: Submit application if institutional student
+
+      // ✨ FLOW SPLIT:
+      //   - Institutional applicant → continue to Step 3 (verification)
+      //   - Individual reader → straight to pricing
       if (selectedCollege && isInstitution) {
-        try {
-          // Submit application to institution
-          const response = await fetch('https://firstchapterai-production.up.railway.app/api/student/apply', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_id: user.id,
-              institution_id: selectedCollege.id,  // ✅ Fixed: use .id not .institution_id
-              student_name: user.fullName || user.firstName || 'Student',
-              student_email: user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || '',
-              department: profession === 'Student' ? 'General' : null,
-              course: null,
-            })
-          });
-
-          if (!response.ok) {
-            throw new Error('Application submission failed');
-          }
-
-          // Redirect to pending page
-          router.push('/reader-onboarding/pending');
-        } catch (appError) {
-          console.error('Application error:', appError);
-          alert('Could not submit application. Please try again or contact support.');
-          setLoading(false);
-          return;
-        }
-      } else {
-        // Individual reader (no college) → Go to pricing
-        router.push("/pricing");
+        setStep(3);
+        setLoading(false);
+        return;
       }
+
+      // Individual reader path — unchanged
+      router.push("/pricing");
     } catch (e) {
       console.error("Onboarding save error:", e);
       alert("Something went wrong. Please try again.");
-    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Submitted from Step 3 — sends the full institutional application
+  const submitInstitutionApplication = async () => {
+    if (!user || !selectedCollege) return;
+
+    // Client-side validation
+    const nameClean = verificationName.trim();
+    const rollClean = admissionNumber.trim();
+
+    if (!nameClean) {
+      setVerificationError("Please enter your full name as per institutional records");
+      return;
+    }
+    if (!rollClean) {
+      setVerificationError("Please enter your admission/roll number");
+      return;
+    }
+    if (!yearOfAdmission) {
+      setVerificationError("Please select your year of admission");
+      return;
+    }
+
+    setVerificationError("");
+    setLoading(true);
+
+    try {
+      const response = await fetch('https://firstchapterai-production.up.railway.app/api/student/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          institution_id: selectedCollege.id,
+          student_name: nameClean,
+          student_email: user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || '',
+          student_roll_number: rollClean,
+          year_of_admission: yearOfAdmission,
+        })
+      });
+
+      if (!response.ok) {
+        let detail = "Application could not be submitted. Please try again.";
+        try {
+          const data = await response.json();
+          if (data?.detail) detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+        } catch { /* ignore */ }
+        setVerificationError(detail);
+        setLoading(false);
+        return;
+      }
+
+      router.push('/reader-onboarding/pending');
+    } catch (e) {
+      console.error('Application error:', e);
+      setVerificationError("Network error — please check your connection and try again.");
       setLoading(false);
     }
   };
@@ -177,13 +229,17 @@ export default function ReaderOnboarding() {
             First<span style={{ color: "#1D9E75" }}>chapter</span>
           </h1>
           <p style={{ fontSize: "13px", color: "#888780", margin: 0 }}>
-            {step === 1 ? "One quick question before we begin" : "Tell us what you love reading"}
+            {step === 1
+              ? "One quick question before we begin"
+              : step === 2
+                ? "Tell us what you love reading"
+                : "Verify your enrollment for institution access"}
           </p>
         </div>
 
-        {/* Progress dots */}
+        {/* Progress dots — 3 steps for institutional applicants, 2 for individuals */}
         <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginBottom: "24px" }}>
-          {[1, 2].map(i => (
+          {(selectedCollege && isInstitution ? [1, 2, 3] : [1, 2]).map(i => (
             <div key={i} style={{
               width: i === step ? "20px" : "6px", height: "6px",
               borderRadius: "100px",
@@ -394,7 +450,9 @@ export default function ReaderOnboarding() {
                   cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
                   marginBottom: "12px",
                 }}>
-                {loading ? "Setting up your account..." : "Start reading →"}
+                {loading
+                  ? "Setting up your account..."
+                  : (selectedCollege && isInstitution ? "Continue → Verify enrollment" : "Start reading →")}
               </button>
 
               <button
@@ -418,28 +476,15 @@ export default function ReaderOnboarding() {
                         }),
                       }
                     });
-                    
-                    // ✨ NEW FLOW: Submit application if institutional student
+
+                    // Institution applicants cannot skip the verification step —
+                    // route them to Step 3 instead. Individuals proceed to pricing.
                     if (selectedCollege && isInstitution) {
-                      try {
-                        await fetch('https://firstchapterai-production.up.railway.app/api/student/apply', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            user_id: user.id,
-                            institution_id: selectedCollege.id,  // ✅ Fixed: use .id
-                            student_name: user.fullName || user.firstName || 'Student',
-                            student_email: user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || '',
-                          })
-                        });
-                        router.push('/reader-onboarding/pending');
-                      } catch {
-                        alert('Could not submit application. Please complete your profile.');
-                        setLoading(false);
-                      }
-                    } else {
-                      router.push("/pricing");
+                      setStep(3);
+                      setLoading(false);
+                      return;
                     }
+                    router.push("/pricing");
                   } catch {
                     router.push("/pricing");
                   } finally {
@@ -451,7 +496,109 @@ export default function ReaderOnboarding() {
                   color: "#B4B2A9", fontSize: "13px", cursor: "pointer",
                   fontFamily: "'DM Sans', sans-serif",
                 }}>
-                Skip for now
+                {selectedCollege && isInstitution ? "Continue without preferences →" : "Skip for now"}
+              </button>
+            </>
+          )}
+
+          {/* STEP 3 — Institution verification (institution applicants only) */}
+          {step === 3 && (
+            <>
+              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "22px", color: "#2C2C2A", margin: "0 0 4px" }}>
+                Verify your enrollment
+              </h2>
+              <p style={{ fontSize: "14px", color: "#888780", margin: "0 0 24px", lineHeight: 1.6 }}>
+                {selectedCollege?.name} will use these details to verify your application.
+                Please enter them exactly as on your institutional records.
+              </p>
+
+              {/* Full name as per records */}
+              <div style={{ marginBottom: "18px" }}>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>
+                  Full name (as per institutional records) <span style={{ color: "#E24B4A" }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={verificationName}
+                  onChange={(e) => { setVerificationName(e.target.value); setVerificationError(""); }}
+                  placeholder="e.g., Loganathan Arumugam"
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* Admission/roll number */}
+              <div style={{ marginBottom: "18px" }}>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>
+                  Admission / roll number <span style={{ color: "#E24B4A" }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={admissionNumber}
+                  onChange={(e) => { setAdmissionNumber(e.target.value); setVerificationError(""); }}
+                  placeholder="e.g., 21BCE1042"
+                  style={inputStyle}
+                />
+                <p style={{ fontSize: "11px", color: "#B4B2A9", margin: "6px 0 0" }}>
+                  Used by your institution to verify your enrollment.
+                </p>
+              </div>
+
+              {/* Year of admission */}
+              <div style={{ marginBottom: "24px" }}>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>
+                  Year of admission <span style={{ color: "#E24B4A" }}>*</span>
+                </label>
+                <select
+                  value={yearOfAdmission}
+                  onChange={(e) => { setYearOfAdmission(e.target.value ? parseInt(e.target.value) : ""); setVerificationError(""); }}
+                  style={{ ...inputStyle, appearance: "auto" }}
+                >
+                  <option value="">Select year</option>
+                  {admissionYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              {verificationError && (
+                <div style={{
+                  background: "#FDEDEC",
+                  border: "1px solid #F5B7B1",
+                  borderRadius: "8px",
+                  padding: "10px 12px",
+                  marginBottom: "16px",
+                  fontSize: "12px",
+                  color: "#922B21",
+                  lineHeight: 1.5,
+                }}>
+                  {verificationError}
+                </div>
+              )}
+
+              <button
+                onClick={submitInstitutionApplication}
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  background: loading ? "#9FE1CB" : "#1D9E75",
+                  color: "white", border: "none", borderRadius: "100px",
+                  padding: "14px", fontSize: "14px", fontWeight: "500",
+                  cursor: loading ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif",
+                  marginBottom: "12px",
+                }}>
+                {loading ? "Submitting application..." : "Submit application for review →"}
+              </button>
+
+              <button
+                onClick={() => { setStep(2); setVerificationError(""); }}
+                disabled={loading}
+                style={{
+                  width: "100%", background: "none", border: "none",
+                  color: "#B4B2A9", fontSize: "13px",
+                  cursor: loading ? "default" : "pointer",
+                  fontFamily: "'DM Sans', sans-serif",
+                }}>
+                ← Back
               </button>
             </>
           )}

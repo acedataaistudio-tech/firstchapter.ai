@@ -15,9 +15,11 @@ router = APIRouter()
 class StudentApplicationRequest(BaseModel):
     user_id: str
     institution_id: str
-    student_name: str
+    student_name: str            # As per institutional records
     student_email: EmailStr
-    student_roll_number: Optional[str] = None
+    student_roll_number: str     # Admission/roll number — required for verification
+    year_of_admission: int       # 4-digit year (e.g., 2024)
+    # Legacy / optional fields (kept for backward compatibility)
     department: Optional[str] = None
     course: Optional[str] = None
     year_of_study: Optional[int] = None
@@ -74,6 +76,24 @@ async def submit_student_application(request: StudentApplicationRequest):
     from database.crud import get_db
     db = get_db()
 
+    # ── Validate required fields ─────────────────────────────────
+    name_clean = (request.student_name or "").strip()
+    roll_clean = (request.student_roll_number or "").strip()
+
+    if not name_clean:
+        raise HTTPException(status_code=400, detail="Full name is required")
+    if not roll_clean:
+        raise HTTPException(status_code=400, detail="Admission/roll number is required")
+
+    # Year of admission must be a sensible 4-digit value.
+    # We allow anything from 6 years back to current year (matches the dropdown).
+    current_year = datetime.utcnow().year
+    if not (current_year - 6 <= request.year_of_admission <= current_year):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Year of admission must be between {current_year - 6} and {current_year}"
+        )
+
     try:
         institution_query = db.table("institutions")\
             .select("id, name, is_active, application_status")\
@@ -88,6 +108,7 @@ async def submit_student_application(request: StudentApplicationRequest):
         if not institution.get("is_active"):
             raise HTTPException(status_code=400, detail="This institution is not currently accepting students")
 
+        # Check if THIS user already applied
         existing = db.table("institution_students")\
             .select("id, application_status")\
             .eq("institution_id", request.institution_id)\
@@ -101,12 +122,35 @@ async def submit_student_application(request: StudentApplicationRequest):
             elif status == "approved":
                 raise HTTPException(status_code=400, detail="You are already a member of this institution")
 
+        # Check if the roll number is already in use at this institution
+        # (different user_id but same admission number = someone else claimed it)
+        roll_in_use = db.table("institution_students")\
+            .select("id, user_id, application_status")\
+            .eq("institution_id", request.institution_id)\
+            .eq("student_roll_number", roll_clean)\
+            .execute()
+
+        if roll_in_use.data and len(roll_in_use.data) > 0:
+            # Only block if it's a different user (allow same user re-applying)
+            other = next((r for r in roll_in_use.data if r.get("user_id") != request.user_id), None)
+            if other:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"This admission/roll number is already registered with {institution['name']}. "
+                        f"If this is your number, please contact your institution administrator. "
+                        f"If you entered it by mistake, please double-check and try again."
+                    )
+                )
+
         student_data = {
             "institution_id": request.institution_id,
             "user_id": request.user_id,
-            "student_name": request.student_name,
+            "student_name": name_clean,
             "student_email": request.student_email,
-            "student_roll_number": request.student_roll_number,
+            "student_roll_number": roll_clean,
+            "year_of_admission": request.year_of_admission,
+            # Legacy/optional fields (kept for backward compatibility)
             "student_department": request.department,
             "student_course": request.course,
             "student_year": str(request.year_of_study) if request.year_of_study else None,
@@ -114,7 +158,18 @@ async def submit_student_application(request: StudentApplicationRequest):
             "applied_at": datetime.utcnow().isoformat(),
         }
 
-        result = db.table("institution_students").insert(student_data).execute()
+        try:
+            result = db.table("institution_students").insert(student_data).execute()
+        except Exception as e:
+            # Catch the unique constraint violation if the pre-check missed
+            # something (race condition, etc.) and surface a clean error.
+            err_str = str(e).lower()
+            if "uq_institution_student_roll" in err_str or "duplicate key" in err_str:
+                raise HTTPException(
+                    status_code=409,
+                    detail="This admission/roll number is already registered. Please contact your institution administrator if this is incorrect."
+                )
+            raise
 
         if not result.data or len(result.data) == 0:
             raise HTTPException(status_code=500, detail="Failed to create application")
