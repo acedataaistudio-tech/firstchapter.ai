@@ -352,6 +352,85 @@ def check_per_student_cap(user_id: str, institution_id: str) -> Dict:
 
 
 # ──────────────────────────────────────────────────────────────────
+# 🆕 PHASE C: Sliding-window per-minute rate limit check (institution users)
+# ──────────────────────────────────────────────────────────────────
+def check_per_minute_rate_limit(user_id: str, institution_id: str) -> Dict:
+    """
+    Enforce institution-configured rate_limit_per_minute via sliding 60s window.
+
+    Counts queries this user made in the last 60 seconds against the
+    institution's configured limit. Hard-blocks (429) if exceeded, with a
+    countdown showing seconds until the oldest in-window query rolls off.
+
+    Returns: {allowed, reason?, wait_seconds, queries_in_window, limit}
+    """
+    try:
+        db = get_db()
+
+        # Get institution's configured rate limit
+        sub_query = db.table("subscriptions")\
+            .select("rate_limit_per_minute")\
+            .eq("institution_id", institution_id)\
+            .eq("is_active", True)\
+            .order("created_at", desc=True)\
+            .limit(1)\
+            .execute()
+
+        if not sub_query.data or len(sub_query.data) == 0:
+            return {'allowed': True}
+
+        limit = _to_int(sub_query.data[0].get("rate_limit_per_minute"), default=15)
+        if limit <= 0:
+            return {'allowed': True}
+
+        # Count this user's queries in the last 60 seconds
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(seconds=60)
+
+        recent_query = db.table("queries")\
+            .select("created_at", count="exact")\
+            .eq("user_id", user_id)\
+            .gte("created_at", window_start.isoformat())\
+            .order("created_at", desc=False)\
+            .execute()
+
+        count_in_window = recent_query.count or 0
+
+        if count_in_window >= limit:
+            # Compute wait_seconds: when does the oldest query in the window roll off?
+            wait_seconds = 60  # default
+            if recent_query.data and len(recent_query.data) > 0:
+                try:
+                    oldest = recent_query.data[0].get("created_at")
+                    if oldest:
+                        oldest_dt = datetime.fromisoformat(oldest.replace("Z", "+00:00"))
+                        rolloff = oldest_dt + timedelta(seconds=60)
+                        wait_seconds = max(1, int((rolloff - now).total_seconds()))
+                except Exception:
+                    pass
+
+            return {
+                'allowed': False,
+                'reason': f"🛑 Rate limit reached: {limit} queries/minute. Try again in {wait_seconds} second{'s' if wait_seconds != 1 else ''}.",
+                'wait_seconds': wait_seconds,
+                'queries_in_window': count_in_window,
+                'limit': limit,
+            }
+
+        return {
+            'allowed': True,
+            'queries_in_window': count_in_window,
+            'limit': limit,
+        }
+
+    except Exception as e:
+        # Fail open — never block a query because the rate-limit check itself errored
+        print(f"⚠️ Per-minute rate limit check failed (failing open): {e}")
+        return {'allowed': True}
+
+
+# ──────────────────────────────────────────────────────────────────
 # Track query for cooldown logic
 # ──────────────────────────────────────────────────────────────────
 def track_query_in_rate_limit(user_id: str):
@@ -421,6 +500,18 @@ def enforce_fair_usage(user_id: str) -> Dict:
             if not institution_id:
                 # Inconsistent state, fall through to default
                 return {'allowed': True, 'tier': tier, 'max_tokens': USAGE_LIMITS['institution']['max_tokens_per_query']}
+
+            # ✅ Phase C: Per-minute sliding-window rate limit (admin-configured)
+            rate_minute_check = check_per_minute_rate_limit(user_id, institution_id)
+            if not rate_minute_check['allowed']:
+                raise HTTPException(status_code=429, detail={
+                    'error': 'Rate limit exceeded',
+                    'message': rate_minute_check['reason'],
+                    'wait_seconds': rate_minute_check.get('wait_seconds', 60),
+                    'queries_in_window': rate_minute_check.get('queries_in_window'),
+                    'limit': rate_minute_check.get('limit'),
+                    'tier': tier,
+                })
 
             student_check = check_per_student_cap(user_id, institution_id)
             pool_check = check_institution_pool(institution_id)
