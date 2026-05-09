@@ -469,6 +469,89 @@ def track_query_in_rate_limit(user_id: str):
 # ──────────────────────────────────────────────────────────────────
 # 🎯 MAIN ENFORCEMENT — combines all checks
 # ──────────────────────────────────────────────────────────────────
+def check_trial_pending_quota(user_id: str) -> Dict:
+    """
+    For users with a pending institution application:
+    enforce the trial 50K-token quota (matches Free package).
+
+    Returns:
+      {allowed: bool, reason?, max_tokens, tokens_used, tokens_limit}
+
+    Returns {allowed: True, max_tokens: None} if user is NOT in pending state
+    (caller should fall through to other tier checks).
+    """
+    TRIAL_LIMIT = 50_000
+
+    try:
+        db = get_db()
+
+        # Look up most recent application for this user
+        app_query = db.table("institution_students")\
+            .select("application_status, created_at")\
+            .eq("user_id", user_id)\
+            .order("created_at", desc=True)\
+            .limit(1)\
+            .execute()
+
+        if not app_query.data or len(app_query.data) == 0:
+            # Not an institutional applicant — caller proceeds with normal tier logic
+            return {'in_trial': False}
+
+        app = app_query.data[0]
+        if app.get("application_status") != "pending":
+            # Approved or rejected — caller proceeds with normal tier logic
+            return {'in_trial': False}
+
+        # User is in pending state — enforce trial limit
+        applied_at = app.get("created_at")
+        tokens_used = 0
+        try:
+            tu_query = db.table("token_usage")\
+                .select("input_tokens, output_tokens")\
+                .eq("user_id", user_id)
+            if applied_at:
+                tu_query = tu_query.gte("created_at", applied_at)
+            tu = tu_query.execute()
+            if tu.data:
+                tokens_used = sum(
+                    _to_int(r.get("input_tokens")) + _to_int(r.get("output_tokens"))
+                    for r in tu.data
+                )
+        except Exception as e:
+            print(f"⚠️ trial quota: token_usage lookup failed: {e}")
+
+        if tokens_used >= TRIAL_LIMIT:
+            return {
+                'in_trial': True,
+                'allowed': False,
+                'reason': (
+                    f"🛑 Your trial allocation of {TRIAL_LIMIT:,} tokens has been used. "
+                    f"Your application is still pending — once approved, you'll get full "
+                    f"access to your institution's pool. You can also apply to a different institution."
+                ),
+                'tokens_used': tokens_used,
+                'tokens_limit': TRIAL_LIMIT,
+                'max_tokens': 0,
+            }
+
+        # Still has trial budget — cap each query so they can't overshoot in one shot
+        remaining = TRIAL_LIMIT - tokens_used
+        per_query_cap = min(2000, remaining)  # match Free tier per-query default
+
+        return {
+            'in_trial': True,
+            'allowed': True,
+            'tokens_used': tokens_used,
+            'tokens_limit': TRIAL_LIMIT,
+            'max_tokens': per_query_cap,
+        }
+
+    except Exception as e:
+        print(f"⚠️ Error in trial-pending quota check: {e}")
+        # Fail open — let request proceed; other layers handle it
+        return {'in_trial': False}
+
+
 def enforce_fair_usage(user_id: str) -> Dict:
     """
     Main enforcement called before processing a query.
@@ -488,6 +571,30 @@ def enforce_fair_usage(user_id: str) -> Dict:
                     'tier': tier,
                 }
             )
+
+        # 🆕 Trial-pending enforcement: applies BEFORE tier-based logic.
+        # If user has a pending application, they get a 50K trial quota
+        # (Free-tier equivalent). After exhaustion, they're blocked until
+        # the institution approves.
+        trial_check = check_trial_pending_quota(user_id)
+        if trial_check.get('in_trial'):
+            if not trial_check['allowed']:
+                raise HTTPException(status_code=429, detail={
+                    'error': 'Trial quota exhausted',
+                    'message': trial_check['reason'],
+                    'tokens_used': trial_check.get('tokens_used'),
+                    'tokens_limit': trial_check.get('tokens_limit'),
+                })
+            # Trial allowed — return early with trial-specific cap
+            return {
+                'allowed': True,
+                'tier': 'trial_pending',
+                'max_tokens': trial_check['max_tokens'],
+                'warning': None,
+                'tokens_used': trial_check.get('tokens_used'),
+                'tokens_limit': trial_check.get('tokens_limit'),
+            }
+
 
         if tier == 'institution':
             # Need institution_id for both the per-student and pool checks

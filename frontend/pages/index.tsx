@@ -6,6 +6,7 @@ import { useRouter } from "next/router";
 import toast from "react-hot-toast";
 import { Search, BookOpen, Send, Download, Share2, Save, Users, ChevronRight, X, FileText, Presentation, ChevronDown, Trash2, Bookmark, User, Settings as SettingsIcon, TrendingUp, LogOut } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
+import { AccessStateBanner } from "../components/AccessStateBanner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -704,6 +705,7 @@ export default function Home() {
   };
 
   return (
+    <AccessStateBanner userId={user.id}>
     <div className="flex h-screen bg-gray-50 font-sans">
       <div className="hidden md:flex"><Sidebar view={view} onSetView={setView} /></div>
       <main className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-0">
@@ -891,6 +893,7 @@ export default function Home() {
         </div>
       </div>
     </div>
+    </AccessStateBanner>
   );
 }
 
