@@ -759,7 +759,7 @@ export function InstitutionOnboarding() {
                 Select a subscription package for your institution
               </p>
               
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '32px' }}>
                 {packages
                   .filter((pkg: any) => pkg.type === 'institution')
                   .sort((a: any, b: any) => (a.price_yearly || 0) - (b.price_yearly || 0))

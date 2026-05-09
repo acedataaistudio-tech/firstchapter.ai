@@ -267,6 +267,56 @@ export function PackageSelector({ userType }: PackageSelectorProps) {
     return tokens.toString();
   };
 
+  // Approximate queries from a package, using real per-query averages.
+  // Reads input_tokens / output_tokens from package.features when present
+  // (institutional packages); falls back to parsing the descriptive
+  // "X input + Y output" string for individual packages.
+  const formatQueries = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+    return Math.round(n).toLocaleString();
+  };
+
+  const computeApproxQueries = (pkg: Package): number | null => {
+    let inputTokens: number | undefined;
+    let outputTokens: number | undefined;
+
+    // Institutional packages: features is an object with input_tokens / output_tokens
+    if (pkg.features && !Array.isArray(pkg.features) && typeof pkg.features === 'object') {
+      inputTokens = (pkg.features as any).input_tokens;
+      outputTokens = (pkg.features as any).output_tokens;
+    }
+
+    // Individual packages: features is an array of strings; the second item
+    // typically reads like "3.38M input + 149K output" or "42.5K input + 7.5K output"
+    if (Array.isArray(pkg.features)) {
+      for (const f of pkg.features) {
+        const m = String(f).match(/([\d.]+)\s*([KMB]?)\s*input\s*\+\s*([\d.]+)\s*([KMB]?)\s*output/i);
+        if (m) {
+          const parseAmount = (num: string, unit: string): number => {
+            const v = parseFloat(num);
+            if (!unit) return v;
+            if (unit.toUpperCase() === 'K') return v * 1_000;
+            if (unit.toUpperCase() === 'M') return v * 1_000_000;
+            if (unit.toUpperCase() === 'B') return v * 1_000_000_000;
+            return v;
+          };
+          inputTokens = parseAmount(m[1], m[2]);
+          outputTokens = parseAmount(m[3], m[4]);
+          break;
+        }
+      }
+    }
+
+    if (!inputTokens || !outputTokens) return null;
+
+    // Per-query: ~1,700 input + ~300 output (real platform average).
+    // Whichever bucket runs out first determines max queries.
+    const queriesByInput = inputTokens / 1700;
+    const queriesByOutput = outputTokens / 300;
+    return Math.floor(Math.min(queriesByInput, queriesByOutput));
+  };
+
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -397,6 +447,18 @@ export function PackageSelector({ userType }: PackageSelectorProps) {
                     <div className="text-lg font-semibold text-gray-900">
                       {formatTokens(pkg.token_limit)} tokens
                     </div>
+                    {(() => {
+                      const q = computeApproxQueries(pkg);
+                      if (!q) return null;
+                      const period = (pkg.name === 'Free' || !pkg.price_yearly)
+                        ? 'lifetime'
+                        : (userType === 'institution' ? '/year' : '/month');
+                      return (
+                        <div className="text-xs text-gray-500 mt-1">
+                          ≈ {formatQueries(q)} queries {period}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
