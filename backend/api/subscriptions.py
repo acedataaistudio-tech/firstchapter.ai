@@ -14,10 +14,11 @@ class CreateSubscriptionRequest(BaseModel):
     user_id: str
     package_id: str
     payment_id: Optional[str] = None  # None for free package
-    # Optional — frontend sends these from Clerk so we can populate the
-    # users table on first signup. Backwards-compatible: requests without
-    # them still work for existing users.
+    # Optional — frontend sends from Clerk so we can populate users table
+    # on first signup. Backwards-compatible.
     email: Optional[str] = None
+    # Note: name is not stored in public.users (no column for it). Kept here
+    # for forward-compat in case we want to log/email it, but not persisted.
     full_name: Optional[str] = None
 
 @router.post("/subscriptions/create")
@@ -101,7 +102,7 @@ async def create_subscription(
         # the new subscription so /users/access-state finds it.
         # Without this, access-state returns 'no_access' for fresh signups.
         try:
-            user_check = db.table("users").select("id, email, full_name").eq("id", request.user_id).execute()
+            user_check = db.table("users").select("id, email").eq("id", request.user_id).execute()
             existing_user = user_check.data[0] if user_check.data and len(user_check.data) > 0 else None
 
             user_payload = {
@@ -111,12 +112,10 @@ async def create_subscription(
                 "updated_at": datetime.utcnow().isoformat(),
             }
 
-            # Only set email/name if provided AND not already on file (don't
+            # Only set email if provided AND not already on file (don't
             # overwrite richer existing data with what frontend sent).
             if request.email and (not existing_user or not existing_user.get("email")):
                 user_payload["email"] = request.email
-            if request.full_name and (not existing_user or not existing_user.get("full_name")):
-                user_payload["full_name"] = request.full_name
 
             if existing_user:
                 db.table("users").update(user_payload).eq("id", request.user_id).execute()
@@ -125,7 +124,6 @@ async def create_subscription(
                 db.table("users").insert({
                     "id": request.user_id,
                     "email": request.email or "",
-                    "full_name": request.full_name or "",
                     "queries_used": 0,
                     "queries_limit": 999999,
                     **user_payload,
@@ -138,13 +136,12 @@ async def create_subscription(
             from utils.email_service import send_email
             from utils.email_templates import build_reader_welcome_email, build_reader_payment_receipt_email
 
-            # Look up user details for personalization
-            user_row = db.table("users").select("email, full_name").eq("id", request.user_id).execute()
-            user_email = None
-            user_name = "there"
+            # Look up user email for sending — name comes from Clerk via request
+            user_row = db.table("users").select("email").eq("id", request.user_id).execute()
+            user_email = request.email or None
+            user_name = request.full_name or "there"
             if user_row.data and len(user_row.data) > 0:
-                user_email = user_row.data[0].get("email")
-                user_name = user_row.data[0].get("full_name") or user_name
+                user_email = user_email or user_row.data[0].get("email")
 
             is_paid = price_paise > 0
 
