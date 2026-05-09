@@ -650,10 +650,27 @@ export default function Home() {
 
     addMessage({ id: uuidv4(), role: "assistant", content: data.answer, sources: data.sources, suggestions: data.suggestions || [], timestamp: new Date().toISOString() });
   } catch (e: any) {
-    const detailMsg = e?.detail?.message || e?.detail || e?.message;
-    const errMsg = typeof detailMsg === "string" ? detailMsg : "Query failed.";
-    toast.error(errMsg, { duration: 6000 });
+  // Backend errors come through with e.detail (string OR object) thanks to
+  // the api interceptor. Rate-limit 429s have detail.message + wait_seconds.
+  const detailMsg = (typeof e?.detail === "object" ? e.detail.message : e?.detail) || e?.message || "Query failed.";
+
+  if (e?.status === 429) {
+    // Rate limit / pool exhaustion — use a distinct toast style
+    toast(detailMsg, {
+      duration: 7000,
+      icon: "⏱️",
+      style: {
+        background: "#FFF8E7",
+        color: "#8B5A00",
+        border: "1px solid #FFE4A3",
+        fontSize: "13px",
+        maxWidth: "440px",
+      },
+    });
+  } else {
+    toast.error(detailMsg, { duration: 6000 });
   }
+}
   finally { setIsQuerying(false); }
 };
 

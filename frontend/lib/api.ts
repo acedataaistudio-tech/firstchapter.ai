@@ -16,6 +16,31 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Response interceptor — surface FastAPI's `detail` in a predictable place.
+// FastAPI returns errors as { detail: "..." } or { detail: { message: "...", ... } }.
+// This interceptor copies that detail (and a friendly message) onto the error
+// object so callers can use `err.detail` / `err.message` directly without
+// digging into err.response.data.detail.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.data?.detail !== undefined) {
+      const detail = error.response.data.detail;
+      error.detail = detail;
+      // Pull a string message out of detail for the default `.message`
+      if (typeof detail === "string") {
+        error.message = detail;
+      } else if (typeof detail === "object" && detail !== null) {
+        error.message = detail.message || error.message;
+        error.waitSeconds = detail.wait_seconds;
+        error.errorType = detail.error;
+      }
+    }
+    error.status = error?.response?.status;
+    return Promise.reject(error);
+  }
+);
+
 // Helper to set user ID — call this after Clerk loads
 export function setApiUserId(userId: string) {
   if (typeof window !== "undefined" && userId) {
