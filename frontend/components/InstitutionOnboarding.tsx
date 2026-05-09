@@ -749,6 +749,7 @@ export function InstitutionOnboarding() {
           )}
           
           {/* STEP 4: Package Selection */}
+{/* STEP 4: Package Selection */}
           {step === 4 && (
             <div>
               <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '8px' }}>
@@ -758,44 +759,148 @@ export function InstitutionOnboarding() {
                 Select a subscription package for your institution
               </p>
               
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '32px' }}>
                 {packages
                   .filter((pkg: any) => pkg.type === 'institution')
-                  .map((pkg: any) => (
-                  <div
-                    key={pkg.id}
-                    onClick={() => setFormData({ ...formData, packageId: pkg.id, packageName: pkg.name })}
-                    style={{
-                      padding: '20px',
-                      border: formData.packageId === pkg.id ? '2px solid #1D9E75' : '1px solid #e5e4dc',
-                      borderRadius: '12px',
-                      cursor: 'pointer',
-                      background: formData.packageId === pkg.id ? '#E1F5EE' : 'white',
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    <div style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
-                      {pkg.name}
-                    </div>
-                    <div style={{ fontSize: '24px', fontWeight: '700', color: '#1D9E75', marginBottom: '12px' }}>
-                      ₹{(pkg.price_yearly / 100000).toFixed(2)}L/year
-                    </div>
-                    <div style={{ fontSize: '13px', color: '#888780', marginBottom: '4px' }}>
-                      {pkg.features?.free_mau || 0} students included
-                    </div>
-                    {formData.packageId === pkg.id && (
-                      <div style={{ marginTop: '12px', color: '#1D9E75', fontSize: '14px', fontWeight: '500' }}>
-                        ✓ Selected
+                  .sort((a: any, b: any) => (a.price_yearly || 0) - (b.price_yearly || 0))
+                  .map((pkg: any) => {
+                    const isSelected = formData.packageId === pkg.id;
+                    const isPopular = pkg.name === 'Institution Pro';
+                    const inputTokens = pkg.features?.input_tokens || 0;
+                    const outputTokens = pkg.features?.output_tokens || 0;
+                    const totalTokens = inputTokens + outputTokens;
+                    const featuresList = pkg.features?.features || [];
+                    const freeMAU = pkg.features?.free_mau || 0;
+
+                    // Approx queries: avg 1,700 input + 300 output per query
+                    // Constraint is whichever runs out first
+                    const queriesByInput = Math.floor(inputTokens / 1700);
+                    const queriesByOutput = Math.floor(outputTokens / 300);
+                    const approxQueries = Math.min(queriesByInput, queriesByOutput);
+
+                    const formatTokens = (n: number) => {
+                      if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
+                      if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(0)}M`;
+                      if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+                      return n.toLocaleString();
+                    };
+
+                    const formatQueries = (n: number) => {
+                      if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+                      if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+                      return n.toLocaleString();
+                    };
+
+                    return (
+                      <div
+                        key={pkg.id}
+                        onClick={() => setFormData({ ...formData, packageId: pkg.id, packageName: pkg.name })}
+                        style={{
+                          position: 'relative',
+                          padding: '24px',
+                          border: isSelected ? '2px solid #1D9E75' : isPopular ? '2px solid #378ADD' : '1px solid #e5e4dc',
+                          borderRadius: '14px',
+                          cursor: 'pointer',
+                          background: isSelected ? '#E1F5EE' : 'white',
+                          transition: 'all 0.2s',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '14px',
+                          boxShadow: isSelected || isPopular ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
+                        }}
+                      >
+                        {isPopular && !isSelected && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '-12px',
+                            right: '20px',
+                            background: '#378ADD',
+                            color: 'white',
+                            padding: '4px 12px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            letterSpacing: '0.5px',
+                          }}>
+                            ⭐ POPULAR
+                          </div>
+                        )}
+                        {isSelected && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '-12px',
+                            right: '20px',
+                            background: '#1D9E75',
+                            color: 'white',
+                            padding: '4px 12px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                          }}>
+                            ✓ SELECTED
+                          </div>
+                        )}
+
+                        {/* Header: name + price */}
+                        <div>
+                          <div style={{ fontSize: '18px', fontWeight: '600', marginBottom: '6px' }}>
+                            {pkg.name}
+                          </div>
+                          <div style={{ fontSize: '28px', fontWeight: '700', color: '#1D9E75' }}>
+                            ₹{(pkg.price_yearly / 100000).toFixed(2)}L
+                            <span style={{ fontSize: '14px', fontWeight: '400', color: '#888780' }}>/year</span>
+                          </div>
+                        </div>
+
+                        {/* Capacity highlights */}
+                        <div style={{ background: '#f9f9f7', padding: '12px', borderRadius: '8px', fontSize: '13px' }}>
+                          <div style={{ marginBottom: '6px' }}>
+                            <span style={{ color: '#888780' }}>Students included: </span>
+                            <span style={{ fontWeight: '600' }}>{freeMAU.toLocaleString()}</span>
+                          </div>
+                          <div style={{ marginBottom: '6px' }}>
+                            <span style={{ color: '#888780' }}>Tokens/year: </span>
+                            <span style={{ fontWeight: '600' }}>{formatTokens(totalTokens)}</span>
+                          </div>
+                          <div style={{ marginBottom: '6px' }}>
+                            <span style={{ color: '#888780', fontSize: '12px' }}>
+                              Input {formatTokens(inputTokens)} · Output {formatTokens(outputTokens)}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ color: '#888780' }}>Approx queries/year: </span>
+                            <span style={{ fontWeight: '600', color: '#378ADD' }}>~{formatQueries(approxQueries)}</span>
+                          </div>
+                        </div>
+
+                        {/* Features list */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {featuresList.map((feature: string, i: number) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px' }}>
+                              <Check size={16} style={{ color: '#1D9E75', flexShrink: 0, marginTop: '2px' }} />
+                              <span>{feature}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Per-additional-reader pricing footnote */}
+                        {pkg.features?.additional_user_cost && (
+                          <div style={{ fontSize: '11px', color: '#888780', borderTop: '1px solid #f0efe8', paddingTop: '10px' }}>
+                            Additional readers: ₹{pkg.features.additional_user_cost} per reader/year
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                ))}
+                    );
+                  })}
               </div>
               
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px' }}>
+              <div style={{ background: '#f9f9f7', padding: '20px', borderRadius: '12px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>
                   Estimated Number of Students
                 </label>
+                <p style={{ fontSize: '12px', color: '#888780', marginBottom: '12px' }}>
+                  How many students do you expect to use the platform? This helps us prepare for your needs.
+                </p>
                 <input
                   type="number"
                   min="1"
@@ -812,7 +917,7 @@ export function InstitutionOnboarding() {
               </div>
             </div>
           )}
-          
+             
           {/* Navigation Buttons */}
           <div style={{ marginTop: '32px', display: 'flex', justifyContent: 'space-between' }}>
             {step > 1 && (
