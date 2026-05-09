@@ -445,7 +445,7 @@ export function FUPSettings({ institutionId, currentSettings, onUpdate }: any) {
           </label>
           <input
             type="range"
-            min="500"
+            min="200"
             max="8000"
             step="100"
             value={settings.max_tokens_per_request}

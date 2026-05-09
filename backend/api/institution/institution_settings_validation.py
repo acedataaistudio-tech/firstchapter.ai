@@ -26,7 +26,7 @@ class InstitutionSettingsBounds:
     STUDENT_CAP_MAX = 2.0  # 2.0%
     STUDENT_CAP_DEFAULT = 0.5
     
-    MAX_TOKENS_MIN = 500
+    MAX_TOKENS_MIN = 200
     MAX_TOKENS_MAX = 8000
     MAX_TOKENS_DEFAULT = 4000
     

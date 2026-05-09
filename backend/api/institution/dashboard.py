@@ -20,7 +20,7 @@ class UpdateInstitutionSettingsRequest(BaseModel):
     admin_user_id: str
     admin_name: str
     student_cap_percentage: Optional[float] = None  # 0.1-2.0
-    max_tokens_per_request: Optional[int] = None    # 500-8000
+    max_tokens_per_request: Optional[int] = None    # 200-8000
     rate_limit_per_minute: Optional[int] = None     # 5-30
     change_reason: str
     confirmed: bool = False  # ✅ Set true on the second call after admin reviews impact preview
