@@ -14,6 +14,11 @@ class CreateSubscriptionRequest(BaseModel):
     user_id: str
     package_id: str
     payment_id: Optional[str] = None  # None for free package
+    # Optional — frontend sends these from Clerk so we can populate the
+    # users table on first signup. Backwards-compatible: requests without
+    # them still work for existing users.
+    email: Optional[str] = None
+    full_name: Optional[str] = None
 
 @router.post("/subscriptions/create")
 async def create_subscription(
@@ -91,6 +96,42 @@ async def create_subscription(
             raise HTTPException(status_code=500, detail="Failed to create subscription")
         
         subscription = result.data[0]
+
+        # 🔗 Ensure the users table has a row for this user, and link it to
+        # the new subscription so /users/access-state finds it.
+        # Without this, access-state returns 'no_access' for fresh signups.
+        try:
+            user_check = db.table("users").select("id, email, full_name").eq("id", request.user_id).execute()
+            existing_user = user_check.data[0] if user_check.data and len(user_check.data) > 0 else None
+
+            user_payload = {
+                "subscription_id": subscription["id"],
+                "plan_type": "individual",
+                "role": "reader",
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+
+            # Only set email/name if provided AND not already on file (don't
+            # overwrite richer existing data with what frontend sent).
+            if request.email and (not existing_user or not existing_user.get("email")):
+                user_payload["email"] = request.email
+            if request.full_name and (not existing_user or not existing_user.get("full_name")):
+                user_payload["full_name"] = request.full_name
+
+            if existing_user:
+                db.table("users").update(user_payload).eq("id", request.user_id).execute()
+            else:
+                # New user record — needs minimum fields
+                db.table("users").insert({
+                    "id": request.user_id,
+                    "email": request.email or "",
+                    "full_name": request.full_name or "",
+                    "queries_used": 0,
+                    "queries_limit": 999999,
+                    **user_payload,
+                }).execute()
+        except Exception as e:
+            print(f"⚠️ Could not link subscription to user (non-fatal): {e}")
 
         # ✉️ Send welcome email (non-fatal — never blocks subscription creation)
         try:

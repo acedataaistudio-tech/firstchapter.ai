@@ -68,10 +68,27 @@ export function PackageSelector({ userType }: PackageSelectorProps) {
 
   const createSubscription = async (packageId: string, paymentId?: string) => {
     try {
+      // Backend expects snake_case field names. Also send email and name
+      // from Clerk so the backend can populate the users table on first signup.
+      const userEmail = user?.primaryEmailAddress?.emailAddress
+        || user?.emailAddresses?.[0]?.emailAddress
+        || '';
+      const userName = user?.fullName
+        || `${user?.firstName || ''} ${user?.lastName || ''}`.trim()
+        || user?.firstName
+        || '';
+
       const response = await fetch('/api/subscriptions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // snake_case (backend canonical names)
+          user_id: user?.id,
+          package_id: packageId,
+          payment_id: paymentId || null,
+          email: userEmail,
+          full_name: userName,
+          // camelCase (kept for backward compatibility with any older proxies)
           userId: user?.id,
           packageId,
           paymentId: paymentId || null,
