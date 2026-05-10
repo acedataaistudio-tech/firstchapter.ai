@@ -19,7 +19,11 @@ from utils.email_templates import (
     build_institution_approved_email,
     build_institution_rejected_email,
     build_student_approved_email,
+    build_student_rejected_email,
     build_student_invite_email,
+    build_publisher_application_received_email,
+    build_publisher_approved_email,
+    build_publisher_rejected_email,
 )
 
 router = APIRouter()
@@ -31,6 +35,7 @@ class TestEmailRequest(BaseModel):
     name: Optional[str] = "Test User"
     institution_name: Optional[str] = "Test Institution"
     package_name: Optional[str] = "Basic"
+    publisher_name: Optional[str] = "Test Publisher Co."
 
 
 # Sample data for each template — used when the request doesn't override
@@ -68,11 +73,30 @@ SAMPLE_DATA = {
         validity_years=4,
         monthly_token_allocation=53_460_000,
     ),
+    "student_rejected": lambda r: build_student_rejected_email(
+        student_name=r.name,
+        institution_name=r.institution_name,
+        reason="Sample reason: Your name does not appear in our enrollment records for this institution. If you believe this is incorrect, please contact the institution administrator directly.",
+    ),
     "student_invite": lambda r: build_student_invite_email(
         student_name=r.name,
         institution_name=r.institution_name,
         admin_name="Loganathan Arumugam",
         signup_url="https://www.firstchapter.ai/sign-up?invite=TEST_TOKEN",
+    ),
+    "publisher_application_received": lambda r: build_publisher_application_received_email(
+        contact_name=r.name,
+        publisher_name=r.publisher_name,
+    ),
+    "publisher_approved": lambda r: build_publisher_approved_email(
+        contact_name=r.name,
+        publisher_name=r.publisher_name,
+        publisher_type="independent",
+    ),
+    "publisher_rejected": lambda r: build_publisher_rejected_email(
+        contact_name=r.name,
+        publisher_name=r.publisher_name,
+        reason="Sample reason: Bank account verification did not match the provided PAN. Please update and re-apply with corrected details.",
     ),
 }
 

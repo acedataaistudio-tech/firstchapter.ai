@@ -52,6 +52,7 @@ export default function PublisherOnboarding() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [publisherType, setPublisherType] = useState("");
   const [profile, setProfile] = useState({
@@ -91,27 +92,81 @@ export default function PublisherOnboarding() {
     "Account type",
     "Your profile",
     "Payout details",
-    "AI Rights",
-    "First book",
+    "AI Rights & Submit",
   ];
 
   const handleComplete = async () => {
     setLoading(true);
+    setSubmitError("");
     try {
-      await user?.update({
-  unsafeMetadata: {
-    role:          "publisher",
-    publisherType,
-    onboarded:     true,
-    payoutSetup:   true,
-    agreementDate: new Date().toISOString(),
-  }
-});
+      // Save lightweight metadata to Clerk for navigation/role checks
+      try {
+        await user?.update({
+          unsafeMetadata: {
+            role: "publisher",
+            publisherType,
+            onboarded: true,
+            agreementDate: new Date().toISOString(),
+          }
+        });
+      } catch (metaErr) {
+        console.warn("Clerk metadata update failed (non-fatal):", metaErr);
+      }
+
+      // Submit the application to the backend
+      const userEmail = user?.primaryEmailAddress?.emailAddress
+        || user?.emailAddresses?.[0]?.emailAddress
+        || "";
+
+      const response = await fetch(
+        "https://firstchapterai-production.up.railway.app/api/publisher/apply",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: user?.id,
+            publisher_type: publisherType,
+            profile: {
+              name: profile.name?.trim() || "",
+              contact_person: (user?.fullName
+                || `${user?.firstName || ""} ${user?.lastName || ""}`.trim()
+                || profile.name?.trim()
+                || "Publisher"),
+              email: userEmail,
+              phone: profile.phone || null,
+            },
+            payout: {
+              bank_name: payout.bankName || null,
+              account_number: payout.accountNo || null,
+              ifsc_code: payout.ifsc || null,
+              pan_number: payout.pan || null,
+              gst_number: null,           // Not collected in current wizard
+              upi_id: payout.upi || null,
+            },
+            agreement_accepted: agreementAccepted,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        let detail = "Application could not be submitted. Please try again.";
+        try {
+          const data = await response.json();
+          if (data?.detail) {
+            detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+          }
+        } catch { /* ignore */ }
+        setSubmitError(detail);
+        setLoading(false);
+        return;
+      }
+
+      router.push("/publisher-onboarding/pending");
     } catch (e) {
-      console.error(e);
+      console.error("Publisher application error:", e);
+      setSubmitError("Network error — please check your connection and try again.");
+      setLoading(false);
     }
-    setLoading(false);
-    router.push("/publisher");
   };
 
   const inputStyle: any = {
@@ -410,17 +465,32 @@ export default function PublisherOnboarding() {
               </div>
 
               <div style={{ display: "flex", gap: "12px" }}>
-                <button onClick={() => setStep(3)} style={{ flex: 1, background: "white", color: "#5F5E5A", border: "0.5px solid #e5e4dc", borderRadius: "100px", padding: "13px", fontSize: "14px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                <button onClick={() => setStep(3)} disabled={loading} style={{ flex: 1, background: "white", color: "#5F5E5A", border: "0.5px solid #e5e4dc", borderRadius: "100px", padding: "13px", fontSize: "14px", cursor: loading ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif" }}>
                   ← Back
                 </button>
                 <button
-                  onClick={() => setStep(5)}
-                  disabled={!agreementAccepted}
-                  style={{ flex: 2, background: agreementAccepted ? "#7F77DD" : "#C8C5F0", color: "white", border: "none", borderRadius: "100px", padding: "13px", fontSize: "14px", fontWeight: "500", cursor: agreementAccepted ? "pointer" : "not-allowed", fontFamily: "'DM Sans', sans-serif" }}
+                  onClick={handleComplete}
+                  disabled={!agreementAccepted || loading}
+                  style={{ flex: 2, background: (agreementAccepted && !loading) ? "#7F77DD" : "#C8C5F0", color: "white", border: "none", borderRadius: "100px", padding: "13px", fontSize: "14px", fontWeight: "500", cursor: (agreementAccepted && !loading) ? "pointer" : "not-allowed", fontFamily: "'DM Sans', sans-serif" }}
                 >
-                  I accept — Continue →
+                  {loading ? "Submitting..." : "Submit application →"}
                 </button>
               </div>
+
+              {submitError && (
+                <div style={{
+                  background: "#FDEDEC",
+                  border: "1px solid #F5B7B1",
+                  borderRadius: "8px",
+                  padding: "12px 14px",
+                  marginTop: "16px",
+                  fontSize: "13px",
+                  color: "#922B21",
+                  lineHeight: 1.5,
+                }}>
+                  {submitError}
+                </div>
+              )}
             </div>
           )}
 

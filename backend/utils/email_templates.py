@@ -516,6 +516,80 @@ If you need additional tokens, please contact your institution administrator.
     }
 
 
+def build_student_rejected_email(
+    student_name: str,
+    institution_name: str,
+    reason: Optional[str] = None,
+) -> dict:
+    """
+    Sent when an institution admin rejects a student's application.
+
+    Honest framing: the most common reason for rejection is the student
+    selected the wrong institution. We word the email to gently surface
+    that as the likely cause, while accommodating other reasons too.
+    """
+    content = _heading("Update on your application.")
+
+    if institution_name:
+        content += _para(
+            f"Dear {student_name},<br><br>"
+            f"Thank you for your interest in joining Firstchapter through "
+            f"<strong>{institution_name}</strong>. Unfortunately, this institution has not approved "
+            f"your application at this time."
+        )
+    else:
+        content += _para(
+            f"Dear {student_name},<br><br>"
+            f"Thank you for your interest in Firstchapter. Unfortunately, "
+            f"your application has not been approved at this time."
+        )
+
+    if reason:
+        content += _info_box(
+            f"<strong>Reason provided</strong><br>{reason}",
+            accent="#E74C3C",
+        )
+
+    content += _para(
+        "If you selected this institution by mistake, you may submit a new application "
+        "to the correct institution. If you believe this rejection is in error, please "
+        "reach out to your institution administrator directly to discuss."
+    )
+
+    content += _btn("Apply to Another Institution", f"{APP_BASE_URL}/reader-onboarding")
+
+    content += _para(
+        f"For any platform-related questions, you can reach us at "
+        f'<a href="mailto:{SUPPORT_EMAIL}" style="color:{BRAND_GREEN}; text-decoration:none;">{SUPPORT_EMAIL}</a>.',
+        muted=True,
+    )
+
+    text = f"""Update on your application.
+
+Dear {student_name},
+
+Thank you for your interest in joining Firstchapter through {institution_name}.
+Unfortunately, this institution has not approved your application at this time.
+
+{('Reason provided: ' + reason) if reason else ''}
+
+If you selected this institution by mistake, you may submit a new application to
+the correct institution. If you believe this rejection is in error, please reach
+out to your institution administrator directly to discuss.
+
+Apply to another institution: {APP_BASE_URL}/reader-onboarding
+
+For any platform-related questions, write to {SUPPORT_EMAIL}.
+"""
+
+    return {
+        "subject": f"Update on your Firstchapter application at {institution_name}",
+        "html": _wrap_layout(content, preheader="Your application was not approved. You may apply to a different institution."),
+        "text": text,
+        "tags": {"category": "student_rejection", "stage": "rejected"},
+    }
+
+
 def build_student_invite_email(
     student_name: str,
     institution_name: str,
@@ -575,4 +649,160 @@ If you weren't expecting this invitation or have questions, please reach out to
         "html": _wrap_layout(content, preheader=f"{admin_name} from {institution_name} has pre-approved your access."),
         "text": text,
         "tags": {"category": "student_invite", "stage": "sent"},
+    }
+
+
+# ══════════════════════════════════════════════════════════════════
+# PUBLISHER EMAILS
+# ══════════════════════════════════════════════════════════════════
+
+def build_publisher_application_received_email(
+    contact_name: str,
+    publisher_name: str,
+) -> dict:
+    """Sent when a publisher submits their onboarding application."""
+    content = _heading("Application received.")
+    content += _para(
+        f"Dear {contact_name},<br><br>"
+        f"Thank you for applying to publish on Firstchapter as <strong>{publisher_name}</strong>. "
+        f"Our team will review your application and verify the details you provided, including "
+        f"your business identity and payout information. You can expect a response within 2 business days."
+    )
+
+    content += _info_box(
+        "<strong>What happens next</strong><br>"
+        "1. Our team verifies your publisher and payout details<br>"
+        "2. We may reach out if any clarification is needed<br>"
+        "3. Once approved, you can sign in to your publisher dashboard and begin uploading books"
+    )
+
+    content += _para(
+        f"If you have questions in the meantime, please write to "
+        f'<a href="mailto:{SUPPORT_EMAIL}" style="color:{BRAND_GREEN}; text-decoration:none;">{SUPPORT_EMAIL}</a>.',
+        muted=True,
+    )
+
+    text = f"""Application received.
+
+Dear {contact_name},
+
+Thank you for applying to publish on Firstchapter as {publisher_name}. Our team
+will review your application and verify the details you provided, including your
+business identity and payout information. You can expect a response within 2
+business days.
+
+What happens next:
+  1. Our team verifies your publisher and payout details
+  2. We may reach out if any clarification is needed
+  3. Once approved, you can sign in to your publisher dashboard and begin
+     uploading books
+
+Questions? Write to {SUPPORT_EMAIL}.
+"""
+
+    return {
+        "subject": f"Application received — {publisher_name}",
+        "html": _wrap_layout(content, preheader="We received your publisher application. Review takes ~2 business days."),
+        "text": text,
+        "tags": {"category": "publisher_application", "stage": "received"},
+    }
+
+
+def build_publisher_approved_email(
+    contact_name: str,
+    publisher_name: str,
+    publisher_type: str = "publisher",
+) -> dict:
+    """Sent when platform admin approves a publisher application."""
+    content = _heading(f"Welcome to Firstchapter, {publisher_name}.")
+    content += _para(
+        f"Dear {contact_name},<br><br>"
+        f"Your publisher application has been approved. You may now sign in to your "
+        f"publisher dashboard to begin uploading books and managing your catalog."
+    )
+
+    content += _info_box(
+        "<strong>Your publisher dashboard</strong><br>"
+        "Use the dashboard to upload books, track query performance per title, "
+        "monitor royalty earnings, and manage your payout details."
+    )
+
+    content += _btn("Open Publisher Dashboard", f"{APP_BASE_URL}/publisher")
+
+    content += _para(
+        f"Royalty payments are processed monthly once the threshold is reached. "
+        f"You will receive earnings statements via email at the start of each month.",
+        muted=True,
+    )
+
+    text = f"""Welcome to Firstchapter, {publisher_name}.
+
+Dear {contact_name},
+
+Your publisher application has been approved. You may now sign in to your
+publisher dashboard to begin uploading books and managing your catalog.
+
+Your publisher dashboard:
+Use the dashboard to upload books, track query performance per title,
+monitor royalty earnings, and manage your payout details.
+
+Dashboard: {APP_BASE_URL}/publisher
+
+Royalty payments are processed monthly once the threshold is reached.
+You will receive earnings statements via email at the start of each month.
+"""
+
+    return {
+        "subject": f"Application approved — {publisher_name}",
+        "html": _wrap_layout(content, preheader="Your publisher account is now active."),
+        "text": text,
+        "tags": {"category": "publisher_application", "stage": "approved"},
+    }
+
+
+def build_publisher_rejected_email(
+    contact_name: str,
+    publisher_name: str,
+    reason: Optional[str] = None,
+) -> dict:
+    """Sent when platform admin rejects a publisher application."""
+    content = _heading("Update on your application.")
+    content += _para(
+        f"Dear {contact_name},<br><br>"
+        f"Thank you for your interest in publishing on Firstchapter. After reviewing the "
+        f"application submitted for <strong>{publisher_name}</strong>, we are unable to "
+        f"approve it at this time."
+    )
+
+    if reason:
+        content += _info_box(
+            f"<strong>Reason</strong><br>{reason}",
+            accent="#E74C3C",
+        )
+
+    content += _para(
+        "If you believe this decision was made in error, or if circumstances change, please "
+        f'reach out to us at <a href="mailto:{SUPPORT_EMAIL}" style="color:{BRAND_GREEN}; text-decoration:none;">{SUPPORT_EMAIL}</a>. '
+        "We are happy to revisit applications when new information is available."
+    )
+
+    text = f"""Update on your application.
+
+Dear {contact_name},
+
+Thank you for your interest in publishing on Firstchapter. After reviewing the
+application submitted for {publisher_name}, we are unable to approve it at this time.
+
+{('Reason: ' + reason) if reason else ''}
+
+If you believe this decision was made in error, or if circumstances change, please
+reach out to us at {SUPPORT_EMAIL}. We are happy to revisit applications when new
+information is available.
+"""
+
+    return {
+        "subject": f"Update on your Firstchapter publisher application — {publisher_name}",
+        "html": _wrap_layout(content, preheader="Your application could not be approved at this time."),
+        "text": text,
+        "tags": {"category": "publisher_application", "stage": "rejected"},
     }

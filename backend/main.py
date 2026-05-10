@@ -29,6 +29,8 @@ from websocket_handler.websocket import router as ws_router
 from api.institution import mau_purchase
 from api import email_test
 from api import access_state
+from api.publisher import onboarding as publisher_onboarding
+
 logging.basicConfig(level=logging.INFO)
 
 # ══════════════════════════════════════════════════════════════════
@@ -126,6 +128,7 @@ app.include_router(admin_institutions.router, prefix="/api/admin/institutions", 
 app.include_router(mau_purchase.router, prefix="/api", tags=["Institution MAU Purchase"])
 app.include_router(email_test.router, prefix="/api", tags=["email-test"])
 app.include_router(access_state.router, prefix="/api", tags=["access-state"])
+app.include_router(publisher_onboarding.router, prefix="/api", tags=["publisher"])
 
 # WebSocket
 app.include_router(ws_router)
