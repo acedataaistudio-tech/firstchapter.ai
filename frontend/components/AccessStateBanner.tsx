@@ -44,6 +44,7 @@ export function AccessStateBanner({ userId, children }: AccessStateBannerProps) 
 
   useEffect(() => {
     let cancelled = false;
+
     const load = async () => {
       try {
         const res = await fetch(`${API_URL}/api/users/access-state?user_id=${encodeURIComponent(userId)}`);
@@ -60,8 +61,24 @@ export function AccessStateBanner({ userId, children }: AccessStateBannerProps) 
         if (!cancelled) setLoading(false);
       }
     };
+
+    // Initial load
     load();
-    return () => { cancelled = true; };
+
+    // Re-fetch whenever the tab regains focus.
+    // This catches the common case where an institution admin approves the
+    // student in a separate tab/browser, then the student returns here —
+    // the banner updates without needing a manual refresh.
+    const onFocus = () => {
+      // Skip the spinner on subsequent loads — keep current UI until new data arrives
+      if (!cancelled) load();
+    };
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+    };
   }, [userId]);
 
   if (loading) {
