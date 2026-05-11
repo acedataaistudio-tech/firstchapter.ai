@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/router";
+import { PublisherAccessGate } from "../../components/PublisherAccessGate";
 
 const mockBooks = [
   {
@@ -184,6 +185,7 @@ const handleUpload = async () => {
   };
 
   return (
+    <PublisherAccessGate>
     <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif", background: "#f9f9f7" }}>
 
       {/* Sidebar */}
@@ -794,5 +796,6 @@ const handleUpload = async () => {
       )}
 
     </div>
+    </PublisherAccessGate>
   );
 }

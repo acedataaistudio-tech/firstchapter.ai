@@ -1,8 +1,6 @@
-import { useRouter } from "next/router";
 import { useUser } from "@clerk/nextjs";
 
 export default function PublisherPending() {
-  const router = useRouter();
   const { user } = useUser();
 
   return (
@@ -97,7 +95,7 @@ export default function PublisherPending() {
         <p style={{
           fontSize: "12px",
           color: "#888780",
-          margin: "0 0 20px 0",
+          margin: "0 0 28px 0",
         }}>
           We've sent a confirmation email to{" "}
           <strong>
@@ -107,23 +105,17 @@ export default function PublisherPending() {
           </strong>.
         </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <button
-            onClick={() => router.push("/")}
-            style={{
-              padding: "12px 24px",
-              background: "white",
-              color: "#3D3D3A",
-              border: "1px solid #e5e4dc",
-              borderRadius: "100px",
-              fontSize: "14px",
-              fontWeight: 500,
-              cursor: "pointer",
-              fontFamily: "'DM Sans', sans-serif",
-            }}
-          >
-            Back to home
-          </button>
+        <div style={{
+          background: "#f9f9f7",
+          border: "1px solid #e5e4dc",
+          borderRadius: "10px",
+          padding: "14px 16px",
+          fontSize: "13px",
+          color: "#5F5E5A",
+          lineHeight: 1.6,
+        }}>
+          You can close this window now. Once approved, sign in again to access
+          your publisher dashboard.
         </div>
 
         <p style={{

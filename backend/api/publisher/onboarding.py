@@ -200,3 +200,60 @@ async def submit_publisher_application(request: PublisherApplicationRequest):
             f"Our team will review and notify you within 2 business days."
         ),
     }
+
+
+# ──────────────────────────────────────────────────────────────────
+# GET /publisher/access-state
+# ──────────────────────────────────────────────────────────────────
+from fastapi import Query
+
+
+@router.get("/publisher/access-state")
+def get_publisher_access_state(user_id: str = Query(..., description="Clerk user ID")):
+    """
+    Returns the publisher's current access state. Used by the dashboard
+    guard to decide whether to render the dashboard or a pending/rejected screen.
+
+    States:
+      - 'approved'        : full dashboard access
+      - 'pending'         : awaiting admin review
+      - 'rejected'        : application was rejected
+      - 'no_application'  : user is not a publisher (no row at all)
+    """
+    db = get_db()
+
+    try:
+        result = db.table("publishers")\
+            .select("id, name, application_status, rejection_reason, is_active")\
+            .eq("clerk_user_id", user_id)\
+            .order("created_at", desc=True)\
+            .limit(1)\
+            .execute()
+
+        if not result.data or len(result.data) == 0:
+            return {
+                "state": "no_application",
+                "publisher_name": None,
+                "rejection_reason": None,
+                "can_reapply": True,
+            }
+
+        publisher = result.data[0]
+        status = publisher.get("application_status") or "pending"
+
+        return {
+            "state": status,
+            "publisher_name": publisher.get("name"),
+            "rejection_reason": publisher.get("rejection_reason"),
+            "can_reapply": status == "rejected",
+        }
+
+    except Exception as e:
+        print(f"⚠️ publisher access-state lookup failed: {e}")
+        # Fail safe — treat as pending so user sees waiting screen, not the dashboard.
+        return {
+            "state": "pending",
+            "publisher_name": None,
+            "rejection_reason": None,
+            "can_reapply": False,
+        }
