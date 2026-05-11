@@ -66,7 +66,7 @@ async def submit_publisher_application(request: PublisherApplicationRequest):
             detail="You must accept the publisher agreement to proceed"
         )
 
-    valid_types = {"author", "independent", "traditional", "academic"}
+    valid_types = {"author-publisher", "independent", "traditional", "academic"}
     if request.publisher_type not in valid_types:
         raise HTTPException(
             status_code=400,
