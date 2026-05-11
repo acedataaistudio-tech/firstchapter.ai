@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/router";
 
@@ -79,6 +79,21 @@ export default function PublisherOnboarding() {
     file:        null as File | null,
   });
   const [skipUpload, setSkipUpload] = useState(false);
+
+  // Pre-fill profile.name from Clerk once the user object is loaded.
+  // Without this, the inputs show the prefilled name visually but React state
+  // stays empty, causing "Publisher name is required" errors on submit if the
+  // user doesn't manually type in the field.
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    setProfile(p => {
+      if (p.name) return p;  // Don't overwrite if user has typed something
+      const prefillName = user.firstName
+        ? `${user.firstName} ${user.lastName || ""}`.trim()
+        : "";
+      return prefillName ? { ...p, name: prefillName } : p;
+    });
+  }, [isLoaded, user]);
 
   if (!isLoaded) return null;
 
@@ -304,16 +319,16 @@ export default function PublisherOnboarding() {
                 </div>
 
                 {[
-                  { label: "Full name / Publisher name", key: "name",    placeholder: "Your name or publishing house", prefill: user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "" },
-                  { label: "Website",                    key: "website", placeholder: "https://yourwebsite.com",       prefill: "" },
-                  { label: "Phone number",               key: "phone",   placeholder: "10 digit mobile number",       prefill: "" },
-                  { label: "City",                       key: "city",    placeholder: "e.g. Chennai",                 prefill: "" },
+                  { label: "Full name / Publisher name", key: "name",    placeholder: "Your name or publishing house" },
+                  { label: "Website",                    key: "website", placeholder: "https://yourwebsite.com"       },
+                  { label: "Phone number",               key: "phone",   placeholder: "10 digit mobile number"       },
+                  { label: "City",                       key: "city",    placeholder: "e.g. Chennai"                 },
                 ].map(field => (
                   <div key={field.key} style={{ marginBottom: "16px" }}>
                     <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>{field.label}</label>
                     <input
                       type="text" placeholder={field.placeholder}
-                      defaultValue={field.prefill}
+                      value={(profile as any)[field.key] || ""}
                       onChange={e => setProfile(p => ({ ...p, [field.key]: e.target.value }))}
                       style={inputStyle}
                     />
@@ -333,6 +348,7 @@ export default function PublisherOnboarding() {
                   <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>Bio <span style={{ color: "#B4B2A9" }}>(optional)</span></label>
                   <textarea
                     placeholder="Brief description about you or your publishing house..."
+                    value={profile.bio}
                     onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))}
                     rows={3}
                     style={{ ...inputStyle, resize: "none" as const }}
@@ -381,6 +397,7 @@ export default function PublisherOnboarding() {
                     <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>{field.label}</label>
                     <input
                       type="text" placeholder={field.placeholder}
+                      value={(payout as any)[field.key] || ""}
                       onChange={e => setPayout(p => ({ ...p, [field.key]: e.target.value }))}
                       style={inputStyle}
                     />
