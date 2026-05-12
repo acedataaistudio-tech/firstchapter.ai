@@ -37,6 +37,133 @@ export default function AdminDashboard() {
   const [addUserForm, setAddUserForm] = useState({ firstName: "", lastName: "", email: "", role: "reader" });
   const [addingUser, setAddingUser] = useState(false);
 
+  // ─── Publisher management (Phase 2 frontend) ───────────────────────
+  const [pendingPublishers, setPendingPublishers] = useState<any[]>([]);
+  const [allPublishers, setAllPublishers] = useState<any[]>([]);
+  const [loadingPublishers, setLoadingPublishers] = useState(false);
+  const [publisherFilter, setPublisherFilter] = useState<"pending" | "all" | "approved" | "rejected">("pending");
+
+  // Approve modal
+  const [approveTarget, setApproveTarget] = useState<any>(null);
+  const [approveRate, setApproveRate] = useState<number | "">(7.5);  // ₹ per 1M output tokens
+  const [approveThreshold, setApproveThreshold] = useState<number | "">(500); // ₹
+  const [approveSubmitting, setApproveSubmitting] = useState(false);
+  const [approveError, setApproveError] = useState("");
+
+  // Reject modal
+  const [rejectTarget, setRejectTarget] = useState<any>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectSubmitting, setRejectSubmitting] = useState(false);
+  const [rejectError, setRejectError] = useState("");
+
+  // Fetch pending publishers
+  const fetchPendingPublishers = async () => {
+    setLoadingPublishers(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/publishers/pending`, { headers: ADMIN_HEADERS });
+      const data = await res.json();
+      setPendingPublishers(data.publishers || []);
+    } catch (e) {
+      console.error("Failed to fetch pending publishers:", e);
+    } finally {
+      setLoadingPublishers(false);
+    }
+  };
+
+  // Fetch all publishers (optionally filtered)
+  const fetchAllPublishers = async (statusFilter?: string) => {
+    setLoadingPublishers(true);
+    try {
+      const url = statusFilter && statusFilter !== "all"
+        ? `${API_URL}/api/admin/publishers/all?status=${statusFilter}`
+        : `${API_URL}/api/admin/publishers/all`;
+      const res = await fetch(url, { headers: ADMIN_HEADERS });
+      const data = await res.json();
+      setAllPublishers(data.publishers || []);
+    } catch (e) {
+      console.error("Failed to fetch all publishers:", e);
+    } finally {
+      setLoadingPublishers(false);
+    }
+  };
+
+  // Approve handler
+  const handleApprovePublisher = async () => {
+    if (!approveTarget) return;
+    if (!approveRate || (approveRate as number) <= 0) {
+      setApproveError("Please enter a payout rate greater than 0");
+      return;
+    }
+    setApproveSubmitting(true);
+    setApproveError("");
+    try {
+      const res = await fetch(`${API_URL}/api/admin/publishers/review`, {
+        method: "POST",
+        headers: ADMIN_HEADERS,
+        body: JSON.stringify({
+          publisher_id: approveTarget.id,
+          action: "approve",
+          payout_per_million_output_tokens: Number(approveRate),
+          payment_threshold_rupees: Number(approveThreshold) || 500,
+          admin_user: "platform_admin",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setApproveError(typeof data.detail === "string" ? data.detail : "Approval failed");
+        setApproveSubmitting(false);
+        return;
+      }
+      // Success — close modal, refresh lists
+      setApproveTarget(null);
+      setApproveRate(7.5);
+      setApproveThreshold(500);
+      fetchPendingPublishers();
+      if (publisherFilter !== "pending") fetchAllPublishers(publisherFilter);
+    } catch (e) {
+      setApproveError("Network error — please try again");
+    } finally {
+      setApproveSubmitting(false);
+    }
+  };
+
+  // Reject handler
+  const handleRejectPublisher = async () => {
+    if (!rejectTarget) return;
+    if (!rejectReason.trim()) {
+      setRejectError("Please provide a reason — the publisher will see this in their email");
+      return;
+    }
+    setRejectSubmitting(true);
+    setRejectError("");
+    try {
+      const res = await fetch(`${API_URL}/api/admin/publishers/review`, {
+        method: "POST",
+        headers: ADMIN_HEADERS,
+        body: JSON.stringify({
+          publisher_id: rejectTarget.id,
+          action: "reject",
+          rejection_reason: rejectReason.trim(),
+          admin_user: "platform_admin",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRejectError(typeof data.detail === "string" ? data.detail : "Rejection failed");
+        setRejectSubmitting(false);
+        return;
+      }
+      setRejectTarget(null);
+      setRejectReason("");
+      fetchPendingPublishers();
+      if (publisherFilter !== "pending") fetchAllPublishers(publisherFilter);
+    } catch (e) {
+      setRejectError("Network error — please try again");
+    } finally {
+      setRejectSubmitting(false);
+    }
+  };
+
   // Fetch users from real API
   const fetchUsers = async () => {
     setLoadingUsers(true);
@@ -190,7 +317,14 @@ export default function AdminDashboard() {
     if (!authenticated) return;
     if (activeTab === "users" || activeTab === "overview") fetchUsers();
     if (activeTab === "books" || activeTab === "overview") fetchBooks();
-  }, [activeTab, authenticated]);
+    if (activeTab === "publishers") {
+      if (publisherFilter === "pending") {
+        fetchPendingPublishers();
+      } else {
+        fetchAllPublishers(publisherFilter);
+      }
+    }
+  }, [activeTab, authenticated, publisherFilter]);
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) { setAuthenticated(true); setPasswordError(false); }
@@ -583,91 +717,226 @@ export default function AdminDashboard() {
 {/* PUBLISHERS */}
 {activeTab === "publishers" && (
   <div>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "24px" }}>
-      {[
-        { label: "Total publishers", value: users.filter(u => u.role === "publisher").length, color: "#7F77DD" },
-        { label: "Total books",      value: books.length,                                      color: "#1D9E75" },
-        { label: "Pending payouts",  value: "—",                                               color: "#EF9F27" },
-      ].map((stat, i) => (
-        <div key={i} style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "20px" }}>
-          <p style={{ fontSize: "12px", color: "#888780", margin: "0 0 8px" }}>{stat.label}</p>
-          <p style={{ fontSize: "28px", fontFamily: "'DM Serif Display', serif", color: stat.color, margin: 0 }}>{stat.value}</p>
-        </div>
-      ))}
+    {/* ─── Filter chips ─────────────────────────────────────── */}
+    <div style={{ display: "flex", gap: "8px", marginBottom: "20px", flexWrap: "wrap" as const }}>
+      {(["pending", "approved", "rejected", "all"] as const).map(f => {
+        const isActive = publisherFilter === f;
+        return (
+          <button
+            key={f}
+            onClick={() => setPublisherFilter(f)}
+            style={{
+              padding: "6px 16px",
+              borderRadius: "100px",
+              fontSize: "12px",
+              fontWeight: 500,
+              cursor: "pointer",
+              border: isActive ? "none" : "0.5px solid #e5e4dc",
+              background: isActive ? "#2C2C2A" : "white",
+              color: isActive ? "white" : "#5F5E5A",
+              fontFamily: "'DM Sans', sans-serif",
+              textTransform: "capitalize" as const,
+            }}
+          >
+            {f === "all" ? "All publishers" : f}
+            {f === "pending" && pendingPublishers.length > 0 && (
+              <span style={{
+                marginLeft: "8px",
+                background: isActive ? "#EF9F27" : "#EF9F27",
+                color: "white",
+                padding: "1px 7px",
+                borderRadius: "100px",
+                fontSize: "10px",
+                fontWeight: 600,
+              }}>
+                {pendingPublishers.length}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
 
-    <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", overflow: "hidden" }}>
-      <div style={{ padding: "20px 24px", borderBottom: "0.5px solid #e5e4dc" }}>
-        <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>All publishers</p>
-      </div>
-      {loadingUsers ? (
-        <div style={{ padding: "48px", textAlign: "center" as const }}>
-          <p style={{ fontSize: "13px", color: "#888780" }}>Loading...</p>
+    {/* ─── Pending review (default view) ────────────────────── */}
+    {publisherFilter === "pending" && (
+      <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", overflow: "hidden" }}>
+        <div style={{ padding: "20px 24px", borderBottom: "0.5px solid #e5e4dc", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>Pending applications</p>
+            <p style={{ fontSize: "12px", color: "#888780", margin: "4px 0 0" }}>Review payout details carefully before approving.</p>
+          </div>
+          <button onClick={fetchPendingPublishers} style={{
+            background: "none", border: "0.5px solid #e5e4dc", borderRadius: "8px",
+            padding: "6px 12px", fontSize: "12px", color: "#5F5E5A", cursor: "pointer",
+            fontFamily: "'DM Sans', sans-serif",
+          }}>
+            ⟳ Refresh
+          </button>
         </div>
-      ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#f9f9f7" }}>
-              {["Publisher", "Email", "Joined", "Books", "Status", "Actions"].map(h => (
-                <th key={h} style={{ padding: "12px 20px", textAlign: "left" as const, fontSize: "11px", color: "#888780", fontWeight: "500", borderBottom: "0.5px solid #e5e4dc" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {users.filter(u => u.role === "publisher").map((pub, i) => {
-              const pubBooks = books.filter(b => b.uploaded_by === pub.id);
-              return (
-                <tr key={pub.id} style={{ borderBottom: "0.5px solid #f0efea" }}>
-                  <td style={{ padding: "14px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#EEEDFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: "500", color: "#534AB7" }}>
-                        {pub.name?.[0] || "?"}
-                      </div>
-                      <p style={{ fontSize: "13px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>{pub.name}</p>
-                    </div>
-                  </td>
-                  <td style={{ padding: "14px 20px", fontSize: "13px", color: "#888780" }}>{pub.email}</td>
-                  <td style={{ padding: "14px 20px", fontSize: "13px", color: "#888780" }}>
-                    {pub.joined ? new Date(pub.joined).toLocaleDateString("en-IN") : "—"}
-                  </td>
-                  <td style={{ padding: "14px 20px", fontSize: "13px", color: "#7F77DD", fontWeight: "500" }}>{pubBooks.length}</td>
-                  <td style={{ padding: "14px 20px" }}>
-                    <span style={{ fontSize: "11px", padding: "3px 10px", borderRadius: "100px", background: "#E1F5EE", color: "#0F6E56" }}>
-                      {pub.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: "14px 20px" }}>
-                    <div style={{ display: "flex", gap: "6px" }}>
-                      <button onClick={() => handleSuspendUser(pub.id, pub.status)} style={{
-                        background: "#FAEEDA", color: "#854F0B",
-                        border: "none", borderRadius: "100px", padding: "4px 10px",
-                        fontSize: "11px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+
+        {loadingPublishers ? (
+          <div style={{ padding: "48px", textAlign: "center" as const }}>
+            <p style={{ fontSize: "13px", color: "#888780" }}>Loading...</p>
+          </div>
+        ) : pendingPublishers.length === 0 ? (
+          <div style={{ padding: "48px", textAlign: "center" as const }}>
+            <p style={{ fontSize: "32px", margin: "0 0 12px" }}>✓</p>
+            <p style={{ fontSize: "14px", color: "#888780", margin: 0 }}>No pending applications. All caught up.</p>
+          </div>
+        ) : (
+          <div>
+            {pendingPublishers.map((pub) => (
+              <div key={pub.id} style={{ padding: "20px 24px", borderBottom: "0.5px solid #f0efea" }}>
+                {/* Header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px", gap: "20px" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+                      <p style={{ fontSize: "15px", fontWeight: 600, color: "#2C2C2A", margin: 0 }}>{pub.name}</p>
+                      <span style={{
+                        fontSize: "10px",
+                        padding: "2px 8px",
+                        borderRadius: "100px",
+                        background: "#EEEDFE",
+                        color: "#534AB7",
+                        fontWeight: 500,
+                        textTransform: "uppercase" as const,
+                        letterSpacing: "0.4px",
                       }}>
-                        Suspend
-                      </button>
-                      <button onClick={() => handleDeleteUser(pub.id, pub.name, pub.role)} style={{
-                        background: "#FCEBEB", color: "#A32D2D",
-                        border: "none", borderRadius: "100px", padding: "4px 10px",
-                        fontSize: "11px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-                      }}>
-                        Delete
-                      </button>
+                        {pub.publisher_type || "—"}
+                      </span>
                     </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {users.filter(u => u.role === "publisher").length === 0 && (
-              <tr>
-                <td colSpan={6} style={{ padding: "48px", textAlign: "center" as const, fontSize: "13px", color: "#888780" }}>
-                  No publishers yet. Publishers will appear here after they sign up.
-                </td>
+                    <p style={{ fontSize: "13px", color: "#5F5E5A", margin: 0 }}>
+                      {pub.contact_person} · {pub.email}{pub.phone ? ` · ${pub.phone}` : ""}
+                    </p>
+                    <p style={{ fontSize: "11px", color: "#888780", margin: "4px 0 0" }}>
+                      Applied {pub.applied_at ? new Date(pub.applied_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+                    <button
+                      onClick={() => { setApproveTarget(pub); setApproveError(""); }}
+                      style={{
+                        background: "#1D9E75", color: "white",
+                        border: "none", borderRadius: "100px", padding: "8px 18px",
+                        fontSize: "13px", fontWeight: 500, cursor: "pointer",
+                        fontFamily: "'DM Sans', sans-serif",
+                      }}
+                    >
+                      ✓ Approve
+                    </button>
+                    <button
+                      onClick={() => { setRejectTarget(pub); setRejectError(""); }}
+                      style={{
+                        background: "white", color: "#A32D2D",
+                        border: "0.5px solid #F5B7B1", borderRadius: "100px", padding: "8px 16px",
+                        fontSize: "13px", fontWeight: 500, cursor: "pointer",
+                        fontFamily: "'DM Sans', sans-serif",
+                      }}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+
+                {/* Verification panel — payout details */}
+                <div style={{
+                  background: "#FFFBEC",
+                  border: "1px solid #FFE4A3",
+                  borderRadius: "10px",
+                  padding: "14px 16px",
+                  fontSize: "12px",
+                }}>
+                  <p style={{
+                    fontSize: "10px", textTransform: "uppercase" as const, letterSpacing: "0.5px",
+                    fontWeight: 600, color: "#B8860B", margin: "0 0 8px",
+                  }}>
+                    Verify payout details before approval
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "8px 20px", color: "#3D3D3A" }}>
+                    {pub.bank_name && <div><strong>Bank:</strong> {pub.bank_name}</div>}
+                    {pub.account_number && <div><strong>Account #:</strong> {pub.account_number}</div>}
+                    {pub.ifsc_code && <div><strong>IFSC:</strong> {pub.ifsc_code}</div>}
+                    {pub.pan_number && <div><strong>PAN:</strong> {pub.pan_number}</div>}
+                    {pub.gst_number && <div><strong>GST:</strong> {pub.gst_number}</div>}
+                    {pub.upi_id && <div><strong>UPI:</strong> {pub.upi_id}</div>}
+                    {pub.clerk_user_id && <div style={{ gridColumn: "1 / -1", fontSize: "10px", color: "#888780", marginTop: "4px" }}>
+                      <strong>Clerk:</strong> {pub.clerk_user_id}
+                    </div>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* ─── Approved / Rejected / All views (compact table) ────── */}
+    {publisherFilter !== "pending" && (
+      <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", overflow: "hidden" }}>
+        <div style={{ padding: "20px 24px", borderBottom: "0.5px solid #e5e4dc" }}>
+          <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>
+            {publisherFilter === "all" ? "All publishers" : `${publisherFilter.charAt(0).toUpperCase() + publisherFilter.slice(1)} publishers`}
+          </p>
+        </div>
+        {loadingPublishers ? (
+          <div style={{ padding: "48px", textAlign: "center" as const }}>
+            <p style={{ fontSize: "13px", color: "#888780" }}>Loading...</p>
+          </div>
+        ) : allPublishers.length === 0 ? (
+          <div style={{ padding: "48px", textAlign: "center" as const }}>
+            <p style={{ fontSize: "13px", color: "#888780" }}>No publishers in this view.</p>
+          </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" as const }}>
+            <thead>
+              <tr style={{ background: "#f9f9f7" }}>
+                {["Publisher", "Type", "Email", "Status", "Rate (₹/M)", "Books", "Revenue", "Applied"].map(h => (
+                  <th key={h} style={{ padding: "12px 20px", textAlign: "left" as const, fontSize: "11px", color: "#888780", fontWeight: "500", borderBottom: "0.5px solid #e5e4dc" }}>{h}</th>
+                ))}
               </tr>
-            )}
-          </tbody>
-        </table>
-      )}
-    </div>
+            </thead>
+            <tbody>
+              {allPublishers.map((pub) => {
+                const ratePerMillion = pub.payout_rate_per_token
+                  ? (Number(pub.payout_rate_per_token) * 1_000_000).toFixed(2)
+                  : "—";
+                const statusColor = pub.application_status === "approved" ? { bg: "#E1F5EE", fg: "#0F6E56" }
+                  : pub.application_status === "rejected" ? { bg: "#FCEBEB", fg: "#A32D2D" }
+                  : { bg: "#FAEEDA", fg: "#854F0B" };
+                const revenue = pub.total_revenue_paisa
+                  ? `₹${(Number(pub.total_revenue_paisa) / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+                  : "₹0";
+                return (
+                  <tr key={pub.id} style={{ borderBottom: "0.5px solid #f0efea" }}>
+                    <td style={{ padding: "14px 20px", fontSize: "13px", fontWeight: 500, color: "#2C2C2A" }}>{pub.name}</td>
+                    <td style={{ padding: "14px 20px", fontSize: "12px", color: "#5F5E5A", textTransform: "capitalize" as const }}>
+                      {pub.publisher_type || "—"}
+                    </td>
+                    <td style={{ padding: "14px 20px", fontSize: "13px", color: "#888780" }}>{pub.email || "—"}</td>
+                    <td style={{ padding: "14px 20px" }}>
+                      <span style={{
+                        fontSize: "11px", padding: "3px 10px", borderRadius: "100px",
+                        background: statusColor.bg, color: statusColor.fg, fontWeight: 500,
+                        textTransform: "capitalize" as const,
+                      }}>
+                        {pub.application_status || "pending"}
+                      </span>
+                    </td>
+                    <td style={{ padding: "14px 20px", fontSize: "13px", color: "#2C2C2A", fontWeight: 500 }}>{ratePerMillion}</td>
+                    <td style={{ padding: "14px 20px", fontSize: "13px", color: "#5F5E5A" }}>{pub.total_books || 0}</td>
+                    <td style={{ padding: "14px 20px", fontSize: "13px", color: "#5F5E5A" }}>{revenue}</td>
+                    <td style={{ padding: "14px 20px", fontSize: "12px", color: "#888780" }}>
+                      {pub.applied_at ? new Date(pub.applied_at).toLocaleDateString("en-IN") : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    )}
   </div>
 )}
 
@@ -765,6 +1034,224 @@ export default function AdminDashboard() {
             <a href="https://dashboard.clerk.com" target="_blank" rel="noopener noreferrer" style={{ display: "block", width: "100%", background: "#2C2C2A", color: "white", border: "none", borderRadius: "100px", padding: "12px", fontSize: "14px", fontWeight: "500", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", textAlign: "center" as const, textDecoration: "none" }}>
               Open Clerk Dashboard →
             </a>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* APPROVE PUBLISHER MODAL                                          */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {approveTarget && (
+        <div style={{
+          position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.4)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "16px", zIndex: 1000,
+        }}>
+          <div style={{
+            background: "white", borderRadius: "16px", padding: "28px",
+            maxWidth: "480px", width: "100%", maxHeight: "90vh", overflowY: "auto" as const,
+          }}>
+            <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "22px", color: "#2C2C2A", margin: "0 0 6px" }}>
+              Approve publisher
+            </h3>
+            <p style={{ fontSize: "13px", color: "#888780", margin: "0 0 20px" }}>
+              <strong>{approveTarget.name}</strong> · {approveTarget.email}
+            </p>
+
+            {/* Tier presets */}
+            <div style={{ marginBottom: "18px" }}>
+              <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "8px" }}>
+                Suggested tier
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+                {[
+                  { rate: 5,    label: "Long-tail",  hint: "Indie / unknown" },
+                  { rate: 7.5,  label: "Standard",   hint: "Default" },
+                  { rate: 10,   label: "Premium",    hint: "Strategic partner" },
+                ].map(tier => {
+                  const selected = Number(approveRate) === tier.rate;
+                  return (
+                    <button
+                      key={tier.rate}
+                      onClick={() => setApproveRate(tier.rate)}
+                      style={{
+                        padding: "10px 8px",
+                        border: selected ? "2px solid #1D9E75" : "0.5px solid #e5e4dc",
+                        background: selected ? "#E1F5EE" : "white",
+                        borderRadius: "10px", cursor: "pointer",
+                        fontFamily: "'DM Sans', sans-serif",
+                      }}
+                    >
+                      <p style={{ fontSize: "14px", fontWeight: 600, color: "#2C2C2A", margin: 0 }}>
+                        ₹{tier.rate}/M
+                      </p>
+                      <p style={{ fontSize: "10px", color: "#888780", margin: "2px 0 0" }}>{tier.label}</p>
+                      <p style={{ fontSize: "9px", color: "#B4B2A9", margin: 0 }}>{tier.hint}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Rate input */}
+            <div style={{ marginBottom: "18px" }}>
+              <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>
+                Payout rate (₹ per million output tokens)
+              </label>
+              <input
+                type="number" step="0.5" min="0"
+                value={approveRate}
+                onChange={e => setApproveRate(e.target.value === "" ? "" : Number(e.target.value))}
+                style={{
+                  width: "100%", padding: "11px 14px",
+                  border: "0.5px solid #e5e4dc", borderRadius: "10px",
+                  fontSize: "14px", outline: "none", fontFamily: "'DM Sans', sans-serif",
+                }}
+              />
+              <p style={{ fontSize: "11px", color: "#888780", margin: "6px 0 0" }}>
+                Approximately 10–20% of OpenAI's output cost. Maximum ₹10 recommended.
+              </p>
+            </div>
+
+            {/* Payment threshold */}
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>
+                Minimum payout threshold (₹)
+              </label>
+              <input
+                type="number" step="100" min="0"
+                value={approveThreshold}
+                onChange={e => setApproveThreshold(e.target.value === "" ? "" : Number(e.target.value))}
+                style={{
+                  width: "100%", padding: "11px 14px",
+                  border: "0.5px solid #e5e4dc", borderRadius: "10px",
+                  fontSize: "14px", outline: "none", fontFamily: "'DM Sans', sans-serif",
+                }}
+              />
+              <p style={{ fontSize: "11px", color: "#888780", margin: "6px 0 0" }}>
+                Earnings below this won't trigger a monthly payout (default: ₹500).
+              </p>
+            </div>
+
+            {approveError && (
+              <div style={{
+                background: "#FDEDEC", border: "1px solid #F5B7B1",
+                borderRadius: "8px", padding: "10px 12px", marginBottom: "16px",
+                fontSize: "12px", color: "#922B21",
+              }}>
+                {approveError}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => { setApproveTarget(null); setApproveError(""); }}
+                disabled={approveSubmitting}
+                style={{
+                  flex: 1, background: "white", color: "#5F5E5A",
+                  border: "0.5px solid #e5e4dc", borderRadius: "100px",
+                  padding: "12px", fontSize: "13px", cursor: approveSubmitting ? "default" : "pointer",
+                  fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleApprovePublisher}
+                disabled={approveSubmitting}
+                style={{
+                  flex: 2, background: approveSubmitting ? "#9FE1CB" : "#1D9E75",
+                  color: "white", border: "none", borderRadius: "100px",
+                  padding: "12px", fontSize: "13px", fontWeight: 500,
+                  cursor: approveSubmitting ? "default" : "pointer",
+                  fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                {approveSubmitting ? "Approving..." : "Approve & send email"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* REJECT PUBLISHER MODAL                                           */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {rejectTarget && (
+        <div style={{
+          position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.4)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "16px", zIndex: 1000,
+        }}>
+          <div style={{
+            background: "white", borderRadius: "16px", padding: "28px",
+            maxWidth: "480px", width: "100%",
+          }}>
+            <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "22px", color: "#2C2C2A", margin: "0 0 6px" }}>
+              Reject application
+            </h3>
+            <p style={{ fontSize: "13px", color: "#888780", margin: "0 0 20px" }}>
+              <strong>{rejectTarget.name}</strong> · {rejectTarget.email}
+            </p>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>
+                Reason <span style={{ color: "#E24B4A" }}>*</span>
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                placeholder="e.g., Bank account verification failed — IFSC code does not match an active branch. Please re-apply with corrected details."
+                rows={4}
+                style={{
+                  width: "100%", padding: "11px 14px",
+                  border: "0.5px solid #e5e4dc", borderRadius: "10px",
+                  fontSize: "13px", outline: "none", fontFamily: "'DM Sans', sans-serif",
+                  resize: "none" as const,
+                }}
+              />
+              <p style={{ fontSize: "11px", color: "#888780", margin: "6px 0 0" }}>
+                This reason will be included in the rejection email sent to the publisher.
+              </p>
+            </div>
+
+            {rejectError && (
+              <div style={{
+                background: "#FDEDEC", border: "1px solid #F5B7B1",
+                borderRadius: "8px", padding: "10px 12px", marginBottom: "16px",
+                fontSize: "12px", color: "#922B21",
+              }}>
+                {rejectError}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => { setRejectTarget(null); setRejectReason(""); setRejectError(""); }}
+                disabled={rejectSubmitting}
+                style={{
+                  flex: 1, background: "white", color: "#5F5E5A",
+                  border: "0.5px solid #e5e4dc", borderRadius: "100px",
+                  padding: "12px", fontSize: "13px", cursor: rejectSubmitting ? "default" : "pointer",
+                  fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectPublisher}
+                disabled={rejectSubmitting}
+                style={{
+                  flex: 2, background: rejectSubmitting ? "#F5B7B1" : "#A32D2D",
+                  color: "white", border: "none", borderRadius: "100px",
+                  padding: "12px", fontSize: "13px", fontWeight: 500,
+                  cursor: rejectSubmitting ? "default" : "pointer",
+                  fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                {rejectSubmitting ? "Rejecting..." : "Reject & send email"}
+              </button>
+            </div>
           </div>
         </div>
       )}
