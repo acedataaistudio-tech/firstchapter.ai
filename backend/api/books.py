@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header
-from database.crud import get_all_books, get_book, save_book_metadata
+from database.crud import get_all_books, get_book, save_book_metadata, get_db
 from ingestion.pipeline import ingest_book
 import uuid, shutil, os
 
@@ -30,6 +30,41 @@ async def upload_book(
     if not file.filename.endswith((".pdf", ".epub")):
         raise HTTPException(status_code=400, detail="Only PDF or EPUB files accepted")
 
+    # ─── Look up the uploading publisher ────────────────────────────────
+    # The uploader's Clerk user_id (x_user_id) must map to an APPROVED
+    # publisher row. This is the security boundary — anonymous/student/
+    # institution users cannot upload books here.
+    db = get_db()
+    publisher_id = None
+    publisher_name_resolved = publisher  # fallback to whatever the client sent
+    try:
+        pub_result = db.table("publishers")\
+            .select("id, name, application_status, is_active")\
+            .eq("clerk_user_id", x_user_id)\
+            .execute()
+        if not pub_result.data or len(pub_result.data) == 0:
+            raise HTTPException(
+                status_code=403,
+                detail="Only approved publishers can upload books. Please complete publisher onboarding first."
+            )
+
+        pub_row = pub_result.data[0]
+        if pub_row.get("application_status") != "approved" or not pub_row.get("is_active"):
+            raise HTTPException(
+                status_code=403,
+                detail="Your publisher account is not active. Please wait for approval before uploading."
+            )
+
+        publisher_id = pub_row["id"]
+        publisher_name_resolved = pub_row.get("name") or publisher_name_resolved
+    except HTTPException:
+        raise
+    except Exception as e:
+        # If the DB lookup itself fails, fail closed — don't proceed with an upload
+        # we can't attribute properly.
+        print(f"❌ Publisher lookup failed during upload: {e}")
+        raise HTTPException(status_code=500, detail="Publisher verification failed. Please try again.")
+
     book_id  = str(uuid.uuid4())
     tmp_path = f"/tmp/{book_id}.pdf"
 
@@ -38,15 +73,18 @@ async def upload_book(
         shutil.copyfileobj(file.file, f)
 
     book_metadata = {
-        "id":          book_id,
-        "title":       title or file.filename.replace(".pdf", "").replace(".epub", ""),
-        "author":      author,
-        "publisher":   publisher,
-        "category":    category,
-        "isbn":        isbn,
-        "description": description,
-        "cover_url":   "",
-        "uploaded_by": x_user_id,
+        "id":                   book_id,
+        "title":                title or file.filename.replace(".pdf", "").replace(".epub", ""),
+        "author":               author,
+        "publisher":            publisher_name_resolved,
+        "publisher_id":         publisher_id,           # FK link for revenue attribution
+        "category":             category,
+        "isbn":                 isbn,
+        "description":          description,
+        "cover_url":            "",
+        "uploaded_by":          x_user_id,              # legacy field
+        "uploaded_by_user_id":  x_user_id,              # current field name
+        "is_royalty_free":      False,                  # publisher uploads are NEVER royalty-free
     }
 
     # Run ingestion with moderation
@@ -71,10 +109,11 @@ async def upload_book(
     save_book_metadata(book_metadata)
 
     return {
-        "book_id":  book_id,
-        "title":    book_metadata["title"],
-        "status":   "active",
-        "chunks":   result["chunks"],
-        "pages":    result["pages"],
-        "message":  "Book successfully ingested and available for querying",
+        "book_id":      book_id,
+        "title":        book_metadata["title"],
+        "publisher_id": publisher_id,
+        "status":       "active",
+        "chunks":       result["chunks"],
+        "pages":        result["pages"],
+        "message":      "Book successfully ingested and available for querying",
     }

@@ -3,6 +3,8 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/router";
 import { PublisherAccessGate } from "../../components/PublisherAccessGate";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 const mockBooks = [
   {
     id: "1",
@@ -108,7 +110,7 @@ const handleUpload = async () => {
       formData.append("isbn",        uploadForm.isbn);
       formData.append("description", uploadForm.description);
 
-      const response = await fetch("http://localhost:8000/api/books/upload", {
+      const response = await fetch(`${API_URL}/api/books/upload`, {
         method:  "POST",
         headers: { "x-user-id": user?.id || "anonymous" },
         body:    formData,
@@ -607,7 +609,7 @@ const handleUpload = async () => {
               {[
                 { label: "Agreement type",    value: "Exclusive AI Publishing Rights"         },
                 { label: "Duration",          value: "5 years per book from upload date"      },
-                { label: "Revenue share",     value: "₹0.50 per query (50%)"                 },
+                { label: "Revenue share",     value: "Per-token, set at approval"           },
                 { label: "Scope",             value: "Worldwide — AI querying rights only"    },
                 { label: "Your other rights", value: "Print, audio, translation, film — fully retained" },
                 { label: "Early exit fee",    value: "₹2,000 per book processing fee"        },
@@ -667,14 +669,14 @@ const handleUpload = async () => {
               <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", cursor: "pointer" }}>
                 <input type="checkbox" checked={agreementAccepted} onChange={e => setAgreementAccepted(e.target.checked)} style={{ marginTop: "2px", flexShrink: 0 }} />
                 <p style={{ fontSize: "12px", color: "#534AB7", margin: 0, lineHeight: 1.5 }}>
-                  I confirm I hold AI publishing rights for this book and agree to grant Firstchapter.ai exclusive AI querying rights for 5 years at ₹0.50 per query revenue share.{" "}
+                  I confirm I hold AI publishing rights for this book and agree to grant Firstchapter.ai exclusive AI querying rights for 5 years. Royalty paid per million output tokens generated against this book, at the rate communicated during publisher onboarding approval.{" "}
                   <span onClick={() => setShowAgreement(true)} style={{ textDecoration: "underline", cursor: "pointer" }}>View full agreement</span>
                 </p>
               </label>
             </div>
 
             <div style={{ background: "#E1F5EE", borderRadius: "10px", padding: "12px 16px", marginBottom: "20px" }}>
-              <p style={{ fontSize: "12px", color: "#0F6E56", margin: 0 }}>💰 You earn <strong>₹0.50 per query</strong>. Payouts on 1st of every month. Minimum ₹500.</p>
+              <p style={{ fontSize: "12px", color: "#0F6E56", margin: 0 }}>💰 You earn based on output tokens generated, at your approved rate. Payouts processed monthly once minimum threshold (₹500) is reached.</p>
             </div>
 
             <button onClick={handleUpload} disabled={!uploadForm.title || !uploadForm.author || !uploadForm.file || !agreementAccepted || uploading} style={{
@@ -702,7 +704,7 @@ const handleUpload = async () => {
               {[
                 { title: "1. Grant of Rights",  body: "Publisher grants Firstchapter.ai exclusive worldwide rights to convert, embed and make queryable the Work using AI technology for a period of 5 years from the date of upload." },
                 { title: "2. Retained Rights",  body: "Publisher retains all print, audio, translation, film and all other rights not specifically granted herein. This agreement covers AI querying rights only." },
-                { title: "3. Revenue Share",    body: "Platform shall pay Publisher ₹0.50 per query generated on the Work, paid monthly on the 1st of each month. Minimum payout threshold: ₹500." },
+                { title: "3. Revenue Share",    body: "Platform shall pay Publisher per-token royalty for queries generated against the Work. Rate is set during publisher onboarding approval (typically ₹5–₹10 per million output tokens) and may be reviewed periodically. Paid monthly when minimum payout threshold (₹500) is reached, otherwise quarterly." },
                 { title: "4. Content Protection", body: "Platform shall not reproduce, distribute or expose raw content. All interactions are query-response only with full attribution to the Work and Author." },
                 { title: "5. Exclusivity",      body: "Publisher shall not grant AI querying rights to any competing platform during the term of this agreement." },
                 { title: "6. Termination",      body: "Either party may terminate with 90 days written notice. Early termination by Publisher incurs a processing fee of ₹2,000 to cover ingestion costs." },
