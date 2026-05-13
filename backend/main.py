@@ -31,6 +31,8 @@ from api import email_test
 from api import access_state
 from api.publisher import onboarding as publisher_onboarding
 from api.admin import publishers as admin_publishers
+from api.publisher import dashboard as publisher_dashboard
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -131,6 +133,7 @@ app.include_router(email_test.router, prefix="/api", tags=["email-test"])
 app.include_router(access_state.router, prefix="/api", tags=["access-state"])
 app.include_router(publisher_onboarding.router, prefix="/api", tags=["publisher"])
 app.include_router(admin_publishers.router, prefix="/api", tags=["admin-publishers"])
+app.include_router(publisher_dashboard.router, prefix="/api", tags=["publisher-dashboard"])
 
 # WebSocket
 app.include_router(ws_router)
