@@ -32,7 +32,7 @@ function ApproveModal({
   submitting: boolean;
 }) {
   
- [validityYears, setValidityYears] = useState<number | null>(2); // default 2 years
+ const [validityYears, setValidityYears] = useState<number | null>(2); // default 2 years
 
   return (
     <div style={modalOverlayStyle} onClick={onClose}>
