@@ -1,71 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/router";
 import { PublisherAccessGate } from "../../components/PublisherAccessGate";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-const mockBooks = [
-  {
-    id: "1",
-    title: "The Art of Selling",
-    author: "John Maxwell",
-    category: "Business",
-    status: "active",
-    queries: 1240,
-    revenue: 620,
-    chapters: 12,
-    pages: 280,
-    uploaded: "2026-03-01",
-    rightsExpiry: "2031-03-01",
-    isbn: "978-0-00-000001-1",
-    topChapters: [
-      { chapter: "Chapter 3 — The Psychology of Selling", queries: 312 },
-      { chapter: "Chapter 7 — Closing Techniques",        queries: 287 },
-      { chapter: "Chapter 1 — Introduction",              queries: 198 },
-    ],
-  },
-  {
-    id: "2",
-    title: "Modern Economics",
-    author: "Sarah Chen",
-    category: "Economics",
-    status: "active",
-    queries: 890,
-    revenue: 445,
-    chapters: 18,
-    pages: 420,
-    uploaded: "2026-03-15",
-    rightsExpiry: "2031-03-15",
-    isbn: "978-0-00-000002-2",
-    topChapters: [
-      { chapter: "Chapter 5 — Market Dynamics",   queries: 234 },
-      { chapter: "Chapter 11 — Monetary Policy",  queries: 198 },
-      { chapter: "Chapter 2 — Supply and Demand", queries: 176 },
-    ],
-  },
-  {
-    id: "3",
-    title: "Leadership Principles",
-    author: "David Park",
-    category: "Management",
-    status: "processing",
-    queries: 0,
-    revenue: 0,
-    chapters: 0,
-    pages: 0,
-    uploaded: "2026-04-20",
-    rightsExpiry: "2031-04-20",
-    isbn: "",
-    topChapters: [],
-  },
-];
-
-const payoutHistory = [
-  { month: "March 2026",    queries: 890, amount: 445, status: "paid", date: "2026-04-01" },
-  { month: "February 2026", queries: 760, amount: 380, status: "paid", date: "2026-03-01" },
-  { month: "January 2026",  queries: 590, amount: 295, status: "paid", date: "2026-02-01" },
-];
 
 const categories = [
   "Business","Economics","Philosophy","Science","Technology",
@@ -82,18 +21,226 @@ export default function PublisherDashboard() {
   const [showRemoveConfirm, setShowRemoveConfirm] = useState<any>(null);
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [uploading, setUploading]           = useState(false);
-  const [books, setBooks]                   = useState(mockBooks);
   const [uploadForm, setUploadForm]         = useState({
     title: "", author: "", category: "Business",
     isbn: "", description: "", file: null as File | null,
   });
 
+  // ── Real data from backend ────────────────────────────────────
+  const [meData, setMeData]             = useState<any>(null);
+  const [books, setBooks]               = useState<any[]>([]);
+  const [revenueData, setRevenueData]   = useState<any>(null);
+  const [payoutData, setPayoutData]     = useState<any[]>([]);
+  const [loadingMe, setLoadingMe]       = useState(true);
+  const [loadingBooks, setLoadingBooks] = useState(true);
+  const [loadingRevenue, setLoadingRevenue] = useState(true);
+  const [loadingPayouts, setLoadingPayouts] = useState(true);
+  const [fetchError, setFetchError]     = useState<string>("");
+
+  const fetchAll = async () => {
+    if (!user?.id) return;
+    const headers = { "x-user-id": user.id };
+    setFetchError("");
+
+    // /publisher/me
+    setLoadingMe(true);
+    try {
+      const r = await fetch(`${API_URL}/api/publisher/me`, { headers });
+      if (r.ok) setMeData(await r.json());
+      else setMeData(null);
+    } catch (e) { setMeData(null); }
+    finally { setLoadingMe(false); }
+
+    // /publisher/books
+    setLoadingBooks(true);
+    try {
+      const r = await fetch(`${API_URL}/api/publisher/books`, { headers });
+      const d = r.ok ? await r.json() : { books: [] };
+      setBooks(d.books || []);
+    } catch (e) { setBooks([]); }
+    finally { setLoadingBooks(false); }
+
+    // /publisher/revenue
+    setLoadingRevenue(true);
+    try {
+      const r = await fetch(`${API_URL}/api/publisher/revenue`, { headers });
+      setRevenueData(r.ok ? await r.json() : null);
+    } catch (e) { setRevenueData(null); }
+    finally { setLoadingRevenue(false); }
+
+    // /publisher/payouts
+    setLoadingPayouts(true);
+    try {
+      const r = await fetch(`${API_URL}/api/publisher/payouts`, { headers });
+      const d = r.ok ? await r.json() : { payouts: [] };
+      setPayoutData(d.payouts || []);
+    } catch (e) { setPayoutData([]); }
+    finally { setLoadingPayouts(false); }
+  };
+
+  useEffect(() => {
+    if (isLoaded && user?.id) fetchAll();
+  }, [isLoaded, user?.id]);
+
   if (!isLoaded) return null;
 
-  const totalQueries = books.reduce((s, b) => s + b.queries, 0);
-  const totalRevenue = books.reduce((s, b) => s + b.revenue, 0);
-  const activeBooks  = books.filter(b => b.status === "active").length;
-  const pendingPayout = 620;
+  // ── Derived values from real data ─────────────────────────────
+  const totalBooks   = meData?.total_books ?? books.length;
+  const activeBooks  = meData?.active_books ?? books.filter(b => (b.status || "").toLowerCase() === "active").length;
+  const totalQueries = meData?.total_queries ?? 0;
+  const totalRevenue = Math.round((meData?.total_revenue_paisa ?? 0) / 100);
+  const pendingPayout = Math.round((meData?.pending_payout_paisa ?? 0) / 100);
+  const lastPayoutDate = meData?.last_payout_date;
+  const ratePerMillion = meData?.payout_rate_per_million_tokens ?? 0;
+  const paymentThresholdRupees = Math.round((meData?.payment_threshold_paisa ?? 0) / 100);
+
+  // Publisher display name for sidebar
+  const publisherDisplayName = meData?.publisher_name || (user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "Publisher");
+
+  // Map API book shape to the legacy shape used throughout the JSX
+  // so we don't have to rewrite every reference.
+  const mappedBooks = books.map(b => {
+    const createdAt = b.created_at ? new Date(b.created_at) : null;
+    const expiryDate = createdAt ? new Date(createdAt) : null;
+    if (expiryDate) expiryDate.setFullYear(expiryDate.getFullYear() + 5);
+    return {
+      id:           b.id,
+      title:        b.title || "Untitled",
+      author:       b.author || "Unknown",
+      category:     b.category || "General",
+      status:       (b.status || "active").toLowerCase(),
+      queries:      b.queries || 0,
+      revenue:      Math.round(b.revenue_rupees || 0),
+      revenue_paisa: b.revenue_paisa || 0,
+      tokens:       b.tokens_attributed || 0,
+      chapters:     0,           // not tracked yet
+      pages:        0,           // not tracked yet
+      isbn:         b.isbn || "",
+      cover_url:    b.cover_url || "",
+      uploaded:     b.created_at ? b.created_at.split("T")[0] : "—",
+      rightsExpiry: expiryDate ? expiryDate.toISOString().split("T")[0] : "—",
+      topChapters:  [],          // not tracked yet (Session 4 Analytics)
+    };
+  });
+
+  // ── Editable Settings form ─────────────────────────────────────
+  // Pre-populated from meData. Synced when meData arrives.
+  const [profileForm, setProfileForm] = useState({
+    contact_person: "", phone: "", website: "", bio: "",
+  });
+  const [payoutForm, setPayoutForm] = useState({
+    bank_name: "", account_number: "", ifsc_code: "", upi_id: "", pan_number: "", gst_number: "",
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingPayout, setSavingPayout]   = useState(false);
+  const [profileMessage, setProfileMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [payoutMessage, setPayoutMessage]   = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // When meData loads, pre-populate the forms
+  useEffect(() => {
+    if (meData) {
+      setProfileForm({
+        contact_person: meData.contact_person || "",
+        phone:          meData.phone || "",
+        website:        meData.website || "",
+        bio:            meData.bio || "",
+      });
+      setPayoutForm({
+        bank_name:      meData.bank_name || "",
+        account_number: meData.account_number || "",
+        ifsc_code:      meData.ifsc_code || "",
+        upi_id:         meData.upi_id || "",
+        pan_number:     meData.pan_number || "",
+        gst_number:     meData.gst_number || "",
+      });
+    }
+  }, [meData]);
+
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    setProfileMessage(null);
+    try {
+      const r = await fetch(`${API_URL}/api/publisher/me`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-user-id": user!.id },
+        body: JSON.stringify(profileForm),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        setProfileMessage({ type: "error", text: typeof d.detail === "string" ? d.detail : "Could not save changes" });
+      } else {
+        setProfileMessage({ type: "success", text: "Profile saved." });
+        fetchAll();
+      }
+    } catch (e) {
+      setProfileMessage({ type: "error", text: "Network error — please try again" });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const savePayout = async () => {
+    setSavingPayout(true);
+    setPayoutMessage(null);
+    try {
+      const r = await fetch(`${API_URL}/api/publisher/me`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-user-id": user!.id },
+        body: JSON.stringify(payoutForm),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        setPayoutMessage({ type: "error", text: typeof d.detail === "string" ? d.detail : "Could not save payout details" });
+      } else {
+        setPayoutMessage({ type: "success", text: "Payout details saved." });
+        fetchAll();
+      }
+    } catch (e) {
+      setPayoutMessage({ type: "error", text: "Network error — please try again" });
+    } finally {
+      setSavingPayout(false);
+    }
+  };
+
+  // ── Change password (Clerk-managed) ────────────────────────────
+  const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" });
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Detect whether the user has password auth enabled in Clerk
+  const hasPasswordAuth = user?.passwordEnabled ?? true;
+
+  const changePassword = async () => {
+    setPasswordMessage(null);
+
+    if (!passwordForm.current || !passwordForm.next || !passwordForm.confirm) {
+      setPasswordMessage({ type: "error", text: "Fill all three fields" });
+      return;
+    }
+    if (passwordForm.next !== passwordForm.confirm) {
+      setPasswordMessage({ type: "error", text: "New passwords don't match" });
+      return;
+    }
+    if (passwordForm.next.length < 8) {
+      setPasswordMessage({ type: "error", text: "New password must be at least 8 characters" });
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await user!.updatePassword({
+        currentPassword: passwordForm.current,
+        newPassword:     passwordForm.next,
+      });
+      setPasswordMessage({ type: "success", text: "Password updated successfully." });
+      setPasswordForm({ current: "", next: "", confirm: "" });
+    } catch (e: any) {
+      const msg = e?.errors?.[0]?.message || e?.message || "Could not update password";
+      setPasswordMessage({ type: "error", text: msg });
+    } finally {
+      setChangingPassword(false);
+    }
+  };
 
 const handleUpload = async () => {
     if (!uploadForm.title || !uploadForm.author || !uploadForm.file) return;
@@ -128,30 +275,11 @@ const handleUpload = async () => {
         return;
       }
 
-      // Success — add to books list as active
-      const uploadDate = new Date();
-      const expiryDate = new Date(uploadDate);
-      expiryDate.setFullYear(expiryDate.getFullYear() + 5);
-
-      setBooks(prev => [...prev, {
-        id:           data.book_id,
-        title:        uploadForm.title,
-        author:       uploadForm.author,
-        category:     uploadForm.category,
-        status:       "active",  // Real status from backend
-        queries:      0,
-        revenue:      0,
-        chapters:     0,
-        pages:        data.pages || 0,
-        uploaded:     uploadDate.toISOString().split("T")[0],
-        rightsExpiry: expiryDate.toISOString().split("T")[0],
-        isbn:         uploadForm.isbn,
-        topChapters:  [],
-      }]);
-
+      // Success — refresh data from backend (gets the actual stored row)
       setShowUpload(false);
       setUploadForm({ title: "", author: "", category: "Business", isbn: "", description: "", file: null });
       alert(`✅ "${uploadForm.title}" uploaded successfully!\n\n${data.chunks} chunks indexed.\nBook is now live and queryable by students.`);
+      fetchAll();
 
     } catch (e: any) {
       alert(`Upload failed: ${e.message}`);
@@ -221,7 +349,11 @@ const handleUpload = async () => {
           <p style={{ fontSize: "20px", fontFamily: "'DM Serif Display', serif", color: "#1D9E75", margin: "0 0 2px" }}>
             ₹{pendingPayout.toLocaleString()}
           </p>
-          <p style={{ fontSize: "11px", color: "#888780", margin: 0 }}>Paid on May 1, 2026</p>
+          <p style={{ fontSize: "11px", color: "#888780", margin: 0 }}>
+            {lastPayoutDate
+              ? `Last paid ${new Date(lastPayoutDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
+              : "No payouts yet"}
+          </p>
         </div>
 
         <div style={{ padding: "16px", borderTop: "0.5px solid #e5e4dc" }}>
@@ -231,10 +363,10 @@ const handleUpload = async () => {
               background: "#EEEDFE", display: "flex", alignItems: "center",
               justifyContent: "center", fontSize: "12px", fontWeight: "500", color: "#534AB7",
             }}>
-              {user?.firstName?.[0] || "P"}
+              {publisherDisplayName?.[0] || "P"}
             </div>
             <div>
-              <p style={{ fontSize: "12px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>{user?.firstName || "Publisher"}</p>
+              <p style={{ fontSize: "12px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>{publisherDisplayName}</p>
               <p style={{ fontSize: "11px", color: "#888780", margin: 0 }}>Publisher</p>
             </div>
           </div>
@@ -252,7 +384,7 @@ const handleUpload = async () => {
             <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "26px", color: "#2C2C2A", margin: 0 }}>
               {navItems.find(n => n.id === activeTab)?.label}
             </h2>
-            <p style={{ fontSize: "13px", color: "#888780", margin: "4px 0 0" }}>Welcome back, {user?.firstName || "Publisher"}</p>
+            <p style={{ fontSize: "13px", color: "#888780", margin: "4px 0 0" }}>Welcome back, {publisherDisplayName}</p>
           </div>
           <button onClick={() => setShowUpload(true)} style={{
             background: "#7F77DD", color: "white", border: "none",
@@ -269,7 +401,7 @@ const handleUpload = async () => {
           <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "32px" }}>
               {[
-                { label: "Total books",   value: books.length,                        color: "#7F77DD" },
+                { label: "Total books",   value: totalBooks,                        color: "#7F77DD" },
                 { label: "Active books",  value: activeBooks,                          color: "#1D9E75" },
                 { label: "Total queries", value: totalQueries.toLocaleString(),        color: "#378ADD" },
                 { label: "Total revenue", value: `₹${totalRevenue.toLocaleString()}`, color: "#EF9F27" },
@@ -303,8 +435,8 @@ const handleUpload = async () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {books.map((book, i) => (
-                    <tr key={book.id} style={{ borderBottom: i < books.length - 1 ? "0.5px solid #f0efea" : "none" }}>
+                  {mappedBooks.map((book, i) => (
+                    <tr key={book.id} style={{ borderBottom: i < mappedBooks.length - 1 ? "0.5px solid #f0efea" : "none" }}>
                       <td style={{ padding: "14px 24px" }}>
                         <p style={{ fontSize: "13px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>{book.title}</p>
                         <p style={{ fontSize: "11px", color: "#888780", margin: "2px 0 0" }}>{book.author}</p>
@@ -336,8 +468,23 @@ const handleUpload = async () => {
 
         {/* MY BOOKS */}
         {activeTab === "books" && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "20px" }}>
-            {books.map(book => (
+          <>
+            {loadingBooks ? (
+              <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
+                <p style={{ fontSize: "13px", color: "#888780" }}>Loading your books...</p>
+              </div>
+            ) : mappedBooks.length === 0 ? (
+              <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
+                <p style={{ fontSize: "32px", margin: "0 0 12px" }}>📚</p>
+                <p style={{ fontSize: "16px", fontWeight: 500, color: "#2C2C2A", margin: "0 0 8px", fontFamily: "'DM Serif Display', serif" }}>No books uploaded yet</p>
+                <p style={{ fontSize: "13px", color: "#888780", margin: "0 0 20px" }}>Upload your first book to start earning royalties from student queries.</p>
+                <button onClick={() => setShowUpload(true)} style={{ background: "#7F77DD", color: "white", border: "none", borderRadius: "100px", padding: "10px 24px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                  + Upload Book
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "20px" }}>
+                {mappedBooks.map(book => (
               <div key={book.id} style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "24px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px" }}>
                   <div style={{ flex: 1 }}>
@@ -403,137 +550,143 @@ const handleUpload = async () => {
               <p style={{ fontSize: "14px", fontWeight: "500", color: "#534AB7", margin: "0 0 4px" }}>Upload new book</p>
               <p style={{ fontSize: "12px", color: "#888780", margin: 0 }}>PDF or EPUB · Max 50MB</p>
             </div>
-          </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* ANALYTICS */}
+        {/* ANALYTICS */}
         {activeTab === "analytics" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
-            <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "24px" }}>
-              <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 20px" }}>Queries by book</p>
-              {books.filter(b => b.queries > 0).map((book, i) => (
-                <div key={i} style={{ marginBottom: "16px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                    <p style={{ fontSize: "13px", color: "#2C2C2A", margin: 0 }}>{book.title}</p>
-                    <p style={{ fontSize: "13px", color: "#378ADD", fontWeight: "500", margin: 0 }}>{book.queries.toLocaleString()}</p>
-                  </div>
-                  <div style={{ height: "6px", background: "#f0efea", borderRadius: "100px" }}>
-                    <div style={{ height: "6px", borderRadius: "100px", background: "#378ADD", width: `${(book.queries / totalQueries) * 100}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "24px" }}>
-              <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 20px" }}>Revenue by book</p>
-              {books.filter(b => b.revenue > 0).map((book, i) => (
-                <div key={i} style={{ marginBottom: "16px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                    <p style={{ fontSize: "13px", color: "#2C2C2A", margin: 0 }}>{book.title}</p>
-                    <p style={{ fontSize: "13px", color: "#1D9E75", fontWeight: "500", margin: 0 }}>₹{book.revenue.toLocaleString()}</p>
-                  </div>
-                  <div style={{ height: "6px", background: "#f0efea", borderRadius: "100px" }}>
-                    <div style={{ height: "6px", borderRadius: "100px", background: "#1D9E75", width: `${(book.revenue / totalRevenue) * 100}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "24px" }}>
-              <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 20px" }}>Top queried chapters — The Art of Selling</p>
-              {mockBooks[0].topChapters.map((ch, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px" }}>
-                  <span style={{ width: "24px", height: "24px", borderRadius: "6px", background: "#EEEDFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", color: "#534AB7", fontWeight: "500", flexShrink: 0 }}>{i + 1}</span>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: "12px", color: "#2C2C2A", margin: "0 0 4px" }}>{ch.chapter}</p>
-                    <div style={{ height: "4px", background: "#f0efea", borderRadius: "100px" }}>
-                      <div style={{ height: "4px", borderRadius: "100px", background: "#7F77DD", width: `${(ch.queries / 312) * 100}%` }} />
-                    </div>
-                  </div>
-                  <span style={{ fontSize: "12px", color: "#7F77DD", fontWeight: "500" }}>{ch.queries}</span>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "24px" }}>
-              <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 20px" }}>Platform metrics</p>
-              {[
-                { label: "Daily average queries",    value: "71 queries"               },
-                { label: "Most active book",         value: "The Art of Selling"        },
-                { label: "Most active chapter",      value: "Ch 3 — Psychology of Selling" },
-                { label: "Institutions using books", value: "3 institutions"            },
-                { label: "Individual readers",       value: "47 users"                  },
-                { label: "Average session length",   value: "8.3 queries"               },
-              ].map((item, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: i < 5 ? "0.5px solid #f0efea" : "none" }}>
-                  <p style={{ fontSize: "13px", color: "#888780", margin: 0 }}>{item.label}</p>
-                  <p style={{ fontSize: "13px", color: "#2C2C2A", fontWeight: "500", margin: 0 }}>{item.value}</p>
-                </div>
-              ))}
-            </div>
+          <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
+            <p style={{ fontSize: "32px", margin: "0 0 12px" }}>📊</p>
+            <p style={{ fontSize: "18px", fontWeight: 500, color: "#2C2C2A", margin: "0 0 8px", fontFamily: "'DM Serif Display', serif" }}>Analytics coming soon</p>
+            <p style={{ fontSize: "13px", color: "#888780", margin: "0 0 8px", maxWidth: "500px", marginLeft: "auto", marginRight: "auto", lineHeight: 1.6 }}>
+              Detailed query analytics will appear here once your books receive meaningful traffic. We are working on chapter breakdowns,
+              query patterns, and reader engagement insights.
+            </p>
+            <p style={{ fontSize: "12px", color: "#888780", margin: "16px 0 0" }}>
+              Current: <strong>{totalQueries.toLocaleString()}</strong> total queries across <strong>{totalBooks}</strong> books.
+            </p>
           </div>
         )}
+
 
         {/* REVENUE */}
         {activeTab === "revenue" && (
           <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "24px" }}>
-              {[
-                { label: "This month",     value: "₹620",  sub: "April 2026",   color: "#1D9E75" },
-                { label: "Per query rate", value: "₹0.50", sub: "Standard rate", color: "#7F77DD" },
-                { label: "Next payout",    value: "₹620",  sub: "May 1, 2026",  color: "#378ADD" },
-              ].map((s, i) => (
-                <div key={i} style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "24px" }}>
-                  <p style={{ fontSize: "12px", color: "#888780", margin: "0 0 8px" }}>{s.label}</p>
-                  <p style={{ fontSize: "28px", fontFamily: "'DM Serif Display', serif", color: s.color, margin: 0 }}>{s.value}</p>
-                  <p style={{ fontSize: "11px", color: "#888780", margin: "4px 0 0" }}>{s.sub}</p>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
-              <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 16px" }}>Revenue breakdown — April 2026</p>
-              {books.filter(b => b.revenue > 0).map((book, i) => (
-                <div key={i} style={{ marginBottom: "16px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                    <p style={{ fontSize: "13px", color: "#2C2C2A", margin: 0 }}>{book.title}</p>
-                    <p style={{ fontSize: "13px", color: "#1D9E75", fontWeight: "500", margin: 0 }}>₹{book.revenue.toLocaleString()}</p>
-                  </div>
-                  <div style={{ height: "6px", background: "#f0efea", borderRadius: "100px" }}>
-                    <div style={{ height: "6px", borderRadius: "100px", background: "#1D9E75", width: `${(book.revenue / totalRevenue) * 100}%` }} />
-                  </div>
-                  <p style={{ fontSize: "11px", color: "#888780", margin: "4px 0 0" }}>{book.queries.toLocaleString()} queries × ₹0.50</p>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", overflow: "hidden" }}>
-              <div style={{ padding: "20px 24px", borderBottom: "0.5px solid #e5e4dc" }}>
-                <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>Payout history</p>
+            {loadingRevenue || loadingMe ? (
+              <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
+                <p style={{ fontSize: "13px", color: "#888780" }}>Loading revenue data...</p>
               </div>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ background: "#f9f9f7" }}>
-                    {["Month", "Queries", "Amount", "Status", "Date"].map(h => (
-                      <th key={h} style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", color: "#888780", fontWeight: "500", borderBottom: "0.5px solid #e5e4dc" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {payoutHistory.map((payout, i) => (
-                    <tr key={i} style={{ borderBottom: i < payoutHistory.length - 1 ? "0.5px solid #f0efea" : "none" }}>
-                      <td style={{ padding: "14px 24px", fontSize: "13px", fontWeight: "500", color: "#2C2C2A" }}>{payout.month}</td>
-                      <td style={{ padding: "14px 24px", fontSize: "13px", color: "#378ADD", fontWeight: "500" }}>{payout.queries.toLocaleString()}</td>
-                      <td style={{ padding: "14px 24px", fontSize: "13px", color: "#1D9E75", fontWeight: "500" }}>₹{payout.amount.toLocaleString()}</td>
-                      <td style={{ padding: "14px 24px" }}>
-                        <span style={{ fontSize: "11px", padding: "3px 10px", borderRadius: "100px", background: "#E1F5EE", color: "#0F6E56" }}>{payout.status}</span>
-                      </td>
-                      <td style={{ padding: "14px 24px", fontSize: "13px", color: "#888780" }}>{payout.date}</td>
-                    </tr>
+            ) : (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "24px" }}>
+                  {(() => {
+                    const latestMonth = revenueData?.monthly_breakdown?.[0];
+                    const thisMonthRevenue = latestMonth ? Math.round(latestMonth.revenue_rupees) : 0;
+                    const thisMonthLabel = latestMonth?.month
+                      ? new Date(latestMonth.month + "-01").toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+                      : "No activity yet";
+                    return [
+                      { label: "This month",       value: `₹${thisMonthRevenue.toLocaleString()}`, sub: thisMonthLabel,                          color: "#1D9E75" },
+                      { label: "Rate per 1M tokens", value: `₹${ratePerMillion}`,                  sub: "Your approved royalty rate",          color: "#7F77DD" },
+                      { label: "Pending payout",   value: `₹${pendingPayout.toLocaleString()}`,    sub: paymentThresholdRupees > 0 ? `Min ₹${paymentThresholdRupees} to release` : "Awaiting threshold", color: "#378ADD" },
+                    ];
+                  })().map((s, i) => (
+                    <div key={i} style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "24px" }}>
+                      <p style={{ fontSize: "12px", color: "#888780", margin: "0 0 8px" }}>{s.label}</p>
+                      <p style={{ fontSize: "28px", fontFamily: "'DM Serif Display', serif", color: s.color, margin: 0 }}>{s.value}</p>
+                      <p style={{ fontSize: "11px", color: "#888780", margin: "4px 0 0" }}>{s.sub}</p>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </div>
+
+                {/* Revenue breakdown — latest month */}
+                {(() => {
+                  const latestMonth = revenueData?.monthly_breakdown?.[0];
+                  if (!latestMonth || !latestMonth.books || latestMonth.books.length === 0) {
+                    return (
+                      <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "32px", textAlign: "center", marginBottom: "20px" }}>
+                        <p style={{ fontSize: "13px", color: "#888780", margin: 0 }}>
+                          Revenue tracking starts when your books are queried by readers. Your earnings will appear here once activity begins.
+                        </p>
+                      </div>
+                    );
+                  }
+                  const monthLabel = latestMonth.month
+                    ? new Date(latestMonth.month + "-01").toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+                    : "Latest";
+                  const monthTotalRevenue = latestMonth.revenue_rupees || 1;
+                  return (
+                    <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
+                      <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 16px" }}>Revenue breakdown — {monthLabel}</p>
+                      {latestMonth.books.map((book: any, i: number) => (
+                        <div key={i} style={{ marginBottom: "16px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                            <p style={{ fontSize: "13px", color: "#2C2C2A", margin: 0 }}>{book.book_title}</p>
+                            <p style={{ fontSize: "13px", color: "#1D9E75", fontWeight: "500", margin: 0 }}>₹{Math.round(book.revenue_rupees).toLocaleString()}</p>
+                          </div>
+                          <div style={{ height: "6px", background: "#f0efea", borderRadius: "100px" }}>
+                            <div style={{ height: "6px", borderRadius: "100px", background: "#1D9E75", width: `${Math.max(2, (book.revenue_rupees / monthTotalRevenue) * 100)}%` }} />
+                          </div>
+                          <p style={{ fontSize: "11px", color: "#888780", margin: "4px 0 0" }}>{book.tokens.toLocaleString()} output tokens × ₹{ratePerMillion}/M</p>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* Payout history */}
+                <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", overflow: "hidden" }}>
+                  <div style={{ padding: "20px 24px", borderBottom: "0.5px solid #e5e4dc" }}>
+                    <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>Payout history</p>
+                  </div>
+                  {loadingPayouts ? (
+                    <div style={{ padding: "32px", textAlign: "center" }}>
+                      <p style={{ fontSize: "13px", color: "#888780", margin: 0 }}>Loading...</p>
+                    </div>
+                  ) : payoutData.length === 0 ? (
+                    <div style={{ padding: "32px", textAlign: "center" }}>
+                      <p style={{ fontSize: "13px", color: "#888780", margin: 0 }}>No payouts yet. Earnings accumulate here once they cross the minimum threshold of ₹{paymentThresholdRupees || 500}.</p>
+                    </div>
+                  ) : (
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ background: "#f9f9f7" }}>
+                          {["Period", "Output tokens", "Amount", "Status", "Payment date"].map(h => (
+                            <th key={h} style={{ padding: "12px 24px", textAlign: "left" as const, fontSize: "11px", color: "#888780", fontWeight: "500", borderBottom: "0.5px solid #e5e4dc" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {payoutData.map((payout, i) => {
+                          const start = payout.period_start ? new Date(payout.period_start).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—";
+                          const end = payout.period_end ? new Date(payout.period_end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
+                          const statusColors: any = {
+                            paid:    { bg: "#E1F5EE", fg: "#0F6E56" },
+                            pending: { bg: "#FAEEDA", fg: "#854F0B" },
+                            failed:  { bg: "#FCEBEB", fg: "#A32D2D" },
+                          };
+                          const sc = statusColors[payout.payment_status] || statusColors.pending;
+                          return (
+                            <tr key={payout.id || i} style={{ borderBottom: i < payoutData.length - 1 ? "0.5px solid #f0efea" : "none" }}>
+                              <td style={{ padding: "14px 24px", fontSize: "13px", fontWeight: "500", color: "#2C2C2A" }}>{start} – {end}</td>
+                              <td style={{ padding: "14px 24px", fontSize: "13px", color: "#378ADD", fontWeight: "500" }}>{(payout.total_output_tokens || 0).toLocaleString()}</td>
+                              <td style={{ padding: "14px 24px", fontSize: "13px", color: "#1D9E75", fontWeight: "500" }}>₹{Math.round(payout.revenue_rupees).toLocaleString()}</td>
+                              <td style={{ padding: "14px 24px" }}>
+                                <span style={{ fontSize: "11px", padding: "3px 10px", borderRadius: "100px", background: sc.bg, color: sc.fg, textTransform: "capitalize" as const }}>{payout.payment_status || "pending"}</span>
+                              </td>
+                              <td style={{ padding: "14px 24px", fontSize: "13px", color: "#888780" }}>{payout.payment_date ? new Date(payout.payment_date).toLocaleDateString("en-IN") : "—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -541,66 +694,185 @@ const handleUpload = async () => {
         {activeTab === "settings" && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
 
+            {/* ── Publisher profile (editable) ── */}
             <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "28px" }}>
               <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 16px" }}>Publisher profile</p>
 
-              <div style={{ background: "#E1F5EE", borderRadius: "10px", padding: "10px 14px", marginBottom: "16px" }}>
-                <p style={{ fontSize: "12px", color: "#0F6E56", margin: 0 }}>
-                  ✓ Fields pre-filled from your signup profile. Update as needed.
+              {/* Read-only fields (admin-controlled) */}
+              <div style={{ background: "#f9f9f7", border: "0.5px solid #e5e4dc", borderRadius: "10px", padding: "14px", marginBottom: "16px" }}>
+                <p style={{ fontSize: "11px", color: "#888780", textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 8px" }}>Read-only · contact admin to change</p>
+                <div style={{ display: "grid", gap: "6px", fontSize: "13px", color: "#3D3D3A" }}>
+                  <div><strong>Publisher name:</strong> {meData?.publisher_name || "—"}</div>
+                  <div><strong>Email:</strong> {meData?.email || "—"}</div>
+                  <div><strong>Type:</strong> {meData?.publisher_type || "—"}</div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "14px" }}>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>Contact person</label>
+                <input type="text" placeholder="Your name" value={profileForm.contact_person}
+                  onChange={e => setProfileForm(p => ({ ...p, contact_person: e.target.value }))} style={inputStyle} />
+              </div>
+
+              <div style={{ marginBottom: "14px" }}>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>Phone number</label>
+                <input type="text" placeholder="10 digit mobile" value={profileForm.phone}
+                  onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))} style={inputStyle} />
+              </div>
+
+              <div style={{ marginBottom: "14px" }}>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>Website</label>
+                <input type="text" placeholder="https://yourwebsite.com" value={profileForm.website}
+                  onChange={e => setProfileForm(p => ({ ...p, website: e.target.value }))} style={inputStyle} />
+              </div>
+
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>Bio <span style={{ color: "#B4B2A9" }}>(optional)</span></label>
+                <textarea placeholder="Brief description..." value={profileForm.bio}
+                  onChange={e => setProfileForm(p => ({ ...p, bio: e.target.value }))} rows={3} style={{ ...inputStyle, resize: "none" as const }} />
+              </div>
+
+              {profileMessage && (
+                <div style={{
+                  padding: "8px 12px", borderRadius: "8px", marginBottom: "12px", fontSize: "12px",
+                  background: profileMessage.type === "success" ? "#E1F5EE" : "#FDEDEC",
+                  color: profileMessage.type === "success" ? "#0F6E56" : "#922B21",
+                }}>
+                  {profileMessage.text}
+                </div>
+              )}
+
+              <button onClick={saveProfile} disabled={savingProfile} style={{
+                background: savingProfile ? "#C8C5F0" : "#7F77DD", color: "white", border: "none",
+                borderRadius: "100px", padding: "10px 24px", fontSize: "13px", fontWeight: "500",
+                cursor: savingProfile ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif",
+              }}>
+                {savingProfile ? "Saving..." : "Save profile"}
+              </button>
+            </div>
+
+            {/* ── Payout details (editable) ── */}
+            <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "28px" }}>
+              <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 16px" }}>Payout details</p>
+
+              <div style={{ background: "#FFFBEC", border: "1px solid #FFE4A3", borderRadius: "10px", padding: "10px 14px", marginBottom: "16px" }}>
+                <p style={{ fontSize: "12px", color: "#854F0B", margin: 0 }}>
+                  Changes to payout details may require admin re-verification before next payout.
                 </p>
               </div>
 
-              {[
-                { label: "Publisher / Author name", placeholder: "Your name or publishing house", prefill: user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "" },
-                { label: "Contact email",           placeholder: "your@email.com",                prefill: user?.primaryEmailAddress?.emailAddress || "" },
-                { label: "Website",                 placeholder: "https://yourwebsite.com",       prefill: "" },
-                { label: "Phone number",            placeholder: "10 digit mobile",               prefill: "" },
-              ].map((field, i) => (
-                <div key={i} style={{ marginBottom: "16px" }}>
-                  <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>{field.label}</label>
-                  <input type="text" placeholder={field.placeholder} defaultValue={field.prefill} style={inputStyle} />
-                </div>
-              ))}
+              <div style={{ marginBottom: "14px" }}>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>Bank name</label>
+                <input type="text" placeholder="e.g. State Bank of India" value={payoutForm.bank_name}
+                  onChange={e => setPayoutForm(p => ({ ...p, bank_name: e.target.value }))} style={inputStyle} />
+              </div>
+
+              <div style={{ marginBottom: "14px" }}>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>Account number</label>
+                <input type="text" placeholder="Enter account number" value={payoutForm.account_number}
+                  onChange={e => setPayoutForm(p => ({ ...p, account_number: e.target.value }))} style={inputStyle} />
+              </div>
+
+              <div style={{ marginBottom: "14px" }}>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>IFSC code</label>
+                <input type="text" placeholder="e.g. SBIN0001234" value={payoutForm.ifsc_code}
+                  onChange={e => setPayoutForm(p => ({ ...p, ifsc_code: e.target.value.toUpperCase() }))} style={inputStyle} />
+              </div>
+
+              <div style={{ marginBottom: "14px" }}>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>UPI ID (optional)</label>
+                <input type="text" placeholder="yourname@upi" value={payoutForm.upi_id}
+                  onChange={e => setPayoutForm(p => ({ ...p, upi_id: e.target.value }))} style={inputStyle} />
+              </div>
+
+              <div style={{ marginBottom: "14px" }}>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>PAN number</label>
+                <input type="text" placeholder="ABCDE1234F" value={payoutForm.pan_number}
+                  onChange={e => setPayoutForm(p => ({ ...p, pan_number: e.target.value.toUpperCase() }))} style={inputStyle} />
+              </div>
 
               <div style={{ marginBottom: "16px" }}>
-                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>Publisher type</label>
-                <select style={inputStyle}>
-                  <option>Author-Publisher (I am the author)</option>
-                  <option>Independent Publisher</option>
-                  <option>Traditional Publisher</option>
-                  <option>Academic / Institutional Publisher</option>
-                </select>
+                <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>GST number <span style={{ color: "#B4B2A9" }}>(optional)</span></label>
+                <input type="text" placeholder="GSTIN" value={payoutForm.gst_number}
+                  onChange={e => setPayoutForm(p => ({ ...p, gst_number: e.target.value.toUpperCase() }))} style={inputStyle} />
               </div>
 
-              <button style={{ background: "#7F77DD", color: "white", border: "none", borderRadius: "100px", padding: "10px 24px", fontSize: "13px", fontWeight: "500", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-                Save profile
-              </button>
-            </div>
-
-            <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "28px" }}>
-              <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 24px" }}>Payout details</p>
-              {[
-                { label: "Account holder name", placeholder: "As per bank records"    },
-                { label: "Bank name",           placeholder: "e.g. State Bank of India" },
-                { label: "Account number",      placeholder: "Enter account number"   },
-                { label: "IFSC code",           placeholder: "e.g. SBIN0001234"       },
-                { label: "UPI ID (optional)",   placeholder: "yourname@upi"           },
-                { label: "PAN number",          placeholder: "For TDS compliance"     },
-              ].map((field, i) => (
-                <div key={i} style={{ marginBottom: "16px" }}>
-                  <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>{field.label}</label>
-                  <input type="text" placeholder={field.placeholder} style={inputStyle} />
-                </div>
-              ))}
               <div style={{ background: "#E1F5EE", borderRadius: "10px", padding: "12px 16px", marginBottom: "16px" }}>
-                <p style={{ fontSize: "12px", color: "#0F6E56", margin: 0 }}>✓ Payouts processed on the 1st of every month. Minimum payout threshold: ₹500. TDS deducted as per Indian tax law.</p>
+                <p style={{ fontSize: "12px", color: "#0F6E56", margin: 0 }}>
+                  ✓ Payouts processed monthly once minimum threshold of ₹{paymentThresholdRupees || 500} is reached. TDS deducted as per Indian tax law.
+                </p>
               </div>
-              <button style={{ background: "#1D9E75", color: "white", border: "none", borderRadius: "100px", padding: "10px 24px", fontSize: "13px", fontWeight: "500", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-                Save payout details
+
+              {payoutMessage && (
+                <div style={{
+                  padding: "8px 12px", borderRadius: "8px", marginBottom: "12px", fontSize: "12px",
+                  background: payoutMessage.type === "success" ? "#E1F5EE" : "#FDEDEC",
+                  color: payoutMessage.type === "success" ? "#0F6E56" : "#922B21",
+                }}>
+                  {payoutMessage.text}
+                </div>
+              )}
+
+              <button onClick={savePayout} disabled={savingPayout} style={{
+                background: savingPayout ? "#9FE1CB" : "#1D9E75", color: "white", border: "none",
+                borderRadius: "100px", padding: "10px 24px", fontSize: "13px", fontWeight: "500",
+                cursor: savingPayout ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif",
+              }}>
+                {savingPayout ? "Saving..." : "Save payout details"}
               </button>
             </div>
 
-            {/* AI Rights Agreement status */}
+            {/* ── Change password ── */}
+            <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "28px", gridColumn: "1 / -1" }}>
+              <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 16px" }}>Change password</p>
+
+              {!hasPasswordAuth ? (
+                <div style={{ background: "#f9f9f7", borderRadius: "10px", padding: "16px", fontSize: "13px", color: "#5F5E5A" }}>
+                  You signed in with a social login (Google, etc.). Your password is managed by your identity provider.
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px", alignItems: "end" }}>
+                  <div>
+                    <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>Current password</label>
+                    <input type="password" value={passwordForm.current}
+                      onChange={e => setPasswordForm(p => ({ ...p, current: e.target.value }))} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>New password</label>
+                    <input type="password" value={passwordForm.next}
+                      onChange={e => setPasswordForm(p => ({ ...p, next: e.target.value }))} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>Confirm new password</label>
+                    <input type="password" value={passwordForm.confirm}
+                      onChange={e => setPasswordForm(p => ({ ...p, confirm: e.target.value }))} style={inputStyle} />
+                  </div>
+
+                  {passwordMessage && (
+                    <div style={{
+                      gridColumn: "1 / -1",
+                      padding: "8px 12px", borderRadius: "8px", marginTop: "8px", fontSize: "12px",
+                      background: passwordMessage.type === "success" ? "#E1F5EE" : "#FDEDEC",
+                      color: passwordMessage.type === "success" ? "#0F6E56" : "#922B21",
+                    }}>
+                      {passwordMessage.text}
+                    </div>
+                  )}
+
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <button onClick={changePassword} disabled={changingPassword} style={{
+                      background: changingPassword ? "#C8C5F0" : "#7F77DD", color: "white", border: "none",
+                      borderRadius: "100px", padding: "10px 24px", fontSize: "13px", fontWeight: "500",
+                      cursor: changingPassword ? "default" : "pointer", fontFamily: "'DM Sans', sans-serif",
+                    }}>
+                      {changingPassword ? "Updating..." : "Update password"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── AI Rights Agreement (display only) ── */}
             <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "28px", gridColumn: "1 / -1" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                 <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>AI Publishing Rights Agreement</p>
@@ -609,7 +881,7 @@ const handleUpload = async () => {
               {[
                 { label: "Agreement type",    value: "Exclusive AI Publishing Rights"         },
                 { label: "Duration",          value: "5 years per book from upload date"      },
-                { label: "Revenue share",     value: "Per-token, set at approval"           },
+                { label: "Revenue share",     value: `₹${ratePerMillion}/M output tokens (set at approval)` },
                 { label: "Scope",             value: "Worldwide — AI querying rights only"    },
                 { label: "Your other rights", value: "Print, audio, translation, film — fully retained" },
                 { label: "Early exit fee",    value: "₹2,000 per book processing fee"        },

@@ -36,7 +36,9 @@ def get_authed_publisher(x_user_id: str) -> Dict[str, Any]:
                 "id, name, clerk_user_id, application_status, is_active, "
                 "payout_rate_per_token, payment_threshold, "
                 "total_tokens_generated, total_revenue_paisa, total_books, "
-                "approved_at, created_at, contact_person, email, publisher_type"
+                "approved_at, created_at, contact_person, email, publisher_type, "
+                "phone, website, bio, "
+                "bank_name, account_number, ifsc_code, upi_id, pan_number, gst_number"
             )\
             .eq("clerk_user_id", x_user_id)\
             .execute()
@@ -145,6 +147,19 @@ def publisher_me(x_user_id: str = Header(default="anonymous")):
         "email": pub.get("email"),
         "publisher_type": pub.get("publisher_type"),
         "approved_at": pub.get("approved_at"),
+
+        # Editable profile (publisher can update these)
+        "phone": pub.get("phone"),
+        "website": pub.get("website"),
+        "bio": pub.get("bio"),
+
+        # Editable payout details (publisher can update these)
+        "bank_name": pub.get("bank_name"),
+        "account_number": pub.get("account_number"),
+        "ifsc_code": pub.get("ifsc_code"),
+        "upi_id": pub.get("upi_id"),
+        "pan_number": pub.get("pan_number"),
+        "gst_number": pub.get("gst_number"),
 
         # Headline stats
         "total_books": total_books,
@@ -385,4 +400,130 @@ def publisher_payouts(x_user_id: str = Header(default="anonymous")):
         "publisher_id": publisher_id,
         "payouts": payouts,
         "total": len(payouts),
+    }
+
+
+# ──────────────────────────────────────────────────────────────────
+# PATCH /publisher/me — update editable profile + payout fields
+# ──────────────────────────────────────────────────────────────────
+from pydantic import BaseModel
+
+
+class PublisherProfileUpdate(BaseModel):
+    # Profile fields publisher can edit themselves
+    contact_person: Optional[str] = None
+    phone: Optional[str] = None
+    website: Optional[str] = None
+    bio: Optional[str] = None
+
+    # Payout fields publisher can edit (will trigger re-verification flow in future)
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    ifsc_code: Optional[str] = None
+    upi_id: Optional[str] = None
+    pan_number: Optional[str] = None
+    gst_number: Optional[str] = None
+
+    # Note: publisher CANNOT edit name, email (Clerk-owned), publisher_type,
+    # payout_rate_per_token, payment_threshold, application_status, is_active.
+    # These are admin-controlled fields.
+
+
+@router.patch("/publisher/me")
+def update_publisher_profile(
+    update: PublisherProfileUpdate,
+    x_user_id: str = Header(default="anonymous"),
+):
+    """
+    Allows the logged-in publisher to update their own profile and payout details.
+    Cannot modify admin-controlled fields (name, type, rate, threshold, status).
+    """
+    pub = get_authed_publisher(x_user_id)
+    db = get_db()
+    publisher_id = pub["id"]
+
+    # Build update payload — only include fields that were provided AND
+    # passed minimal validation. Skip Nones (publisher didn't intend to update).
+    payload: Dict[str, Any] = {}
+
+    if update.contact_person is not None:
+        cleaned = (update.contact_person or "").strip()
+        if cleaned:
+            payload["contact_person"] = cleaned
+
+    if update.phone is not None:
+        cleaned = (update.phone or "").strip()
+        if cleaned and not cleaned.replace("+", "").replace("-", "").replace(" ", "").isdigit():
+            raise HTTPException(status_code=400, detail="Phone number must contain only digits, spaces, + or -")
+        payload["phone"] = cleaned or None
+
+    if update.website is not None:
+        cleaned = (update.website or "").strip()
+        payload["website"] = cleaned or None
+
+    if update.bio is not None:
+        payload["bio"] = (update.bio or "").strip() or None
+
+    if update.bank_name is not None:
+        payload["bank_name"] = (update.bank_name or "").strip() or None
+
+    if update.account_number is not None:
+        cleaned = (update.account_number or "").strip()
+        if cleaned and not cleaned.replace(" ", "").isdigit():
+            raise HTTPException(status_code=400, detail="Account number must be digits only")
+        payload["account_number"] = cleaned or None
+
+    if update.ifsc_code is not None:
+        cleaned = (update.ifsc_code or "").strip().upper()
+        # IFSC format: 4 letters + 0 + 6 alphanumeric
+        if cleaned and (len(cleaned) != 11 or not cleaned[:4].isalpha() or cleaned[4] != "0"):
+            raise HTTPException(status_code=400, detail="IFSC code format invalid (expected 4 letters + 0 + 6 chars)")
+        payload["ifsc_code"] = cleaned or None
+
+    if update.upi_id is not None:
+        payload["upi_id"] = (update.upi_id or "").strip() or None
+
+    if update.pan_number is not None:
+        cleaned = (update.pan_number or "").strip().upper()
+        # PAN format: 5 letters + 4 digits + 1 letter
+        if cleaned and (len(cleaned) != 10 or not cleaned[:5].isalpha() or not cleaned[5:9].isdigit() or not cleaned[9].isalpha()):
+            raise HTTPException(status_code=400, detail="PAN format invalid (expected ABCDE1234F)")
+        payload["pan_number"] = cleaned or None
+
+    if update.gst_number is not None:
+        payload["gst_number"] = (update.gst_number or "").strip().upper() or None
+
+    # Require at least one valid bank-OR-UPI payout method to remain after update
+    # (only check if user is touching payout fields)
+    payout_touched = any(k in payload for k in ["bank_name", "account_number", "ifsc_code", "upi_id"])
+    if payout_touched:
+        # Combine with existing values to evaluate
+        bank = payload.get("bank_name", pub.get("bank_name"))
+        acct = payload.get("account_number", pub.get("account_number"))
+        ifsc = payload.get("ifsc_code", pub.get("ifsc_code"))
+        upi = payload.get("upi_id", pub.get("upi_id"))
+        has_bank = bool(bank and acct and ifsc)
+        has_upi = bool(upi)
+        if not (has_bank or has_upi):
+            raise HTTPException(
+                status_code=400,
+                detail="Provide either complete bank details (bank, account, IFSC) or UPI ID for payout"
+            )
+
+    if not payload:
+        return {"success": True, "message": "No changes to save.", "publisher_id": publisher_id}
+
+    payload["updated_at"] = datetime.utcnow().isoformat()
+
+    try:
+        db.table("publishers").update(payload).eq("id", publisher_id).execute()
+    except Exception as e:
+        print(f"❌ Publisher profile update failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update profile")
+
+    return {
+        "success": True,
+        "message": "Profile updated successfully.",
+        "publisher_id": publisher_id,
+        "fields_updated": [k for k in payload.keys() if k != "updated_at"],
     }
