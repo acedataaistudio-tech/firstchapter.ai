@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
+import { AddStudentsModal } from './AddStudentsModal';
 import { Check, X, Search, Calendar, AlertCircle } from 'lucide-react';
 
 const API_BASE_URL = 'https://firstchapterai-production.up.railway.app';
@@ -30,7 +31,8 @@ function ApproveModal({
   onConfirm: (validityYears: number | null) => void;
   submitting: boolean;
 }) {
-  const [validityYears, setValidityYears] = useState<number | null>(2); // default 2 years
+  
+ [validityYears, setValidityYears] = useState<number | null>(2); // default 2 years
 
   return (
     <div style={modalOverlayStyle} onClick={onClose}>
@@ -165,6 +167,7 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
 
   // Toast/banner state for success/error feedback
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [showAddStudents, setShowAddStudents] = useState(false);
 
   useEffect(() => {
     loadStudents();
@@ -319,7 +322,7 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {['all', 'pending', 'approved', 'rejected'].map((f) => (
             <button
               key={f}
@@ -338,6 +341,28 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
               {f}
             </button>
           ))}
+
+          {/* + Add students — pushes to the right */}
+          <button
+            onClick={() => setShowAddStudents(true)}
+            style={{
+              marginLeft: 'auto',
+              padding: '8px 18px',
+              border: 'none',
+              borderRadius: '100px',
+              background: '#1D9E75',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 500,
+              fontFamily: "'DM Sans', sans-serif",
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            + Add students
+          </button>
         </div>
       </div>
 
@@ -499,6 +524,16 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
           onClose={() => !submitting && setRejectingStudent(null)}
           onConfirm={handleRejectConfirm}
           submitting={submitting}
+        />
+      )}
+
+      {/* Bulk / single invite modal */}
+      {showAddStudents && userLoaded && user && (
+        <AddStudentsModal
+          institutionId={institutionId}
+          adminUserId={user.id}
+          onClose={() => setShowAddStudents(false)}
+          onComplete={() => loadStudents()}
         />
       )}
     </div>
