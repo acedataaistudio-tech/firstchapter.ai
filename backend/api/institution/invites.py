@@ -29,29 +29,39 @@ router = APIRouter()
 # Helper — verify the caller is an admin of the given institution.
 # ──────────────────────────────────────────────────────────────────
 def verify_institution_admin(x_user_id: str, institution_id: str) -> dict:
-    """Checks that x_user_id is an active admin of institution_id. Returns the admin row."""
+    """
+    Verifies that x_user_id is the registered Clerk admin for institution_id
+    by matching against institutions.clerk_user_id (the wire-up created during
+    institution wizard signup).
+    """
     if not x_user_id or x_user_id == "anonymous":
         raise HTTPException(status_code=403, detail="Authentication required.")
+    if not institution_id:
+        raise HTTPException(status_code=400, detail="institution_id is required.")
+
     db = get_db()
     try:
-        result = db.table("institution_users")\
-            .select("user_id, institution_id, role, is_active")\
-            .eq("user_id", x_user_id)\
-            .eq("institution_id", institution_id)\
+        result = db.table("institutions")\
+            .select("id, name, clerk_user_id, application_status, is_active")\
+            .eq("id", institution_id)\
+            .eq("clerk_user_id", x_user_id)\
             .execute()
     except Exception as e:
         print(f"❌ Institution admin verification failed: {e}")
-        raise HTTPException(status_code=500, detail="Authorization check failed.")
+        # Return 403 (not 500) for any auth failure — don't leak internals
+        raise HTTPException(status_code=403, detail="Not authorized.")
 
     if not result.data or len(result.data) == 0:
-        raise HTTPException(status_code=403, detail="You are not authorized to invite students for this institution.")
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to manage this institution."
+        )
 
-    admin = result.data[0]
-    if (admin.get("role") or "").lower() not in {"admin", "owner", "manager"}:
-        raise HTTPException(status_code=403, detail="Only institution admins can invite students.")
-    if not admin.get("is_active", True):
-        raise HTTPException(status_code=403, detail="Your institution account is inactive.")
-    return admin
+    inst = result.data[0]
+    if inst.get("application_status") != "approved" or not inst.get("is_active"):
+        raise HTTPException(status_code=403, detail="Institution is not active.")
+
+    return inst
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -103,17 +113,17 @@ def invite_students(
         print(f"⚠️ Could not resolve institution name (non-fatal): {e}")
 
     # ── Resolve admin display name for emails ───────────────
+    # The institutions table has admin_name + contact_person_name columns.
+    # Verified admin row also returned by get_authed (so we already have it).
     admin_name = "Institution Admin"
     try:
-        # Best-effort lookup. Falls back to "Institution Admin".
-        # If you have a users table with name, plug it in here.
-        admin_row = db.table("institution_users")\
-            .select("display_name")\
-            .eq("user_id", x_user_id)\
-            .eq("institution_id", request.institution_id)\
+        inst_lookup = db.table("institutions")\
+            .select("admin_name, contact_person_name")\
+            .eq("id", request.institution_id)\
             .execute()
-        if admin_row.data and len(admin_row.data) > 0 and admin_row.data[0].get("display_name"):
-            admin_name = admin_row.data[0]["display_name"]
+        if inst_lookup.data and len(inst_lookup.data) > 0:
+            row = inst_lookup.data[0]
+            admin_name = row.get("admin_name") or row.get("contact_person_name") or admin_name
     except Exception:
         pass
 
