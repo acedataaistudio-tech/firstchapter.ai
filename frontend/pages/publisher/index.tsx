@@ -82,8 +82,6 @@ export default function PublisherDashboard() {
     if (isLoaded && user?.id) fetchAll();
   }, [isLoaded, user?.id]);
 
-  if (!isLoaded) return null;
-
   // ── Derived values from real data ─────────────────────────────
   const totalBooks   = meData?.total_books ?? books.length;
   const activeBooks  = meData?.active_books ?? books.filter(b => (b.status || "").toLowerCase() === "active").length;
@@ -313,6 +311,21 @@ const handleUpload = async () => {
     position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
     display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100,
   };
+
+  // ─── Auth-loading guard ───────────────────────────────────────
+  // MUST come AFTER all useState/useEffect calls above, otherwise
+  // React's rules-of-hooks ordering breaks on re-render (error #310).
+  if (!isLoaded) {
+    return (
+      <div style={{
+        minHeight: "100vh", background: "#f9f9f7",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "'DM Sans', sans-serif",
+      }}>
+        <p style={{ fontSize: "14px", color: "#888780" }}>Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <PublisherAccessGate>
