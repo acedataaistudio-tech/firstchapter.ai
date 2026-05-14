@@ -172,14 +172,16 @@ def invite_students(
             # Generate invite token (URL-safe)
             invite_token = secrets.token_urlsafe(32)
 
-            # Insert invite row
+            # Insert invite row.
+            # NOTE: user_id is NOT set here — invited students don't have a Clerk
+            # user_id until they claim. Schema must allow NULL on user_id.
             insert_data = {
                 "institution_id": request.institution_id,
                 "student_name": name_clean,
                 "student_email": email_clean,
                 "student_roll_number": admission_clean,
-                "validity_period_years": request.validity_period_years,
-                "application_status": "pending",  # becomes 'approved' on claim
+                "access_validity_years": request.validity_period_years,  # correct column name
+                "application_status": "pending",
                 "applied_at": now_iso,
                 "invite_token": invite_token,
                 "invited_at": now_iso,
@@ -188,9 +190,22 @@ def invite_students(
                 "is_active": False,
             }
 
-            ins_res = db.table("institution_students").insert(insert_data).execute()
-            if not ins_res.data:
-                results["failed"].append({"email": email_clean, "reason": "DB insert failed"})
+            try:
+                ins_res = db.table("institution_students").insert(insert_data).execute()
+            except Exception as insert_err:
+                # Real insert failure — catch, log, mark as failed (NOT created)
+                err_str = str(insert_err).lower()
+                print(f"❌ Insert failed for {email_clean}: {insert_err}")
+                if "duplicate" in err_str or "unique" in err_str:
+                    results["skipped"].append({"email": email_clean, "reason": "Already exists at this institution"})
+                else:
+                    results["failed"].append({"email": email_clean, "reason": f"Database insert failed"})
+                continue
+
+            # Tight success check — supabase returns data array on successful insert
+            if not ins_res or not getattr(ins_res, "data", None) or len(ins_res.data) == 0:
+                print(f"❌ Insert returned no data for {email_clean} — treating as failure")
+                results["failed"].append({"email": email_clean, "reason": "Insert returned no confirmation"})
                 continue
 
             # ✉️ Send invite email (non-fatal — record creation already succeeded)
@@ -253,7 +268,7 @@ def get_invite_details(token: str):
     try:
         result = db.table("institution_students")\
             .select("id, institution_id, student_name, student_email, "
-                    "student_roll_number, validity_period_years, "
+                    "student_roll_number, access_validity_years, "
                     "invite_claimed_at, application_status, invited_at")\
             .eq("invite_token", token)\
             .execute()
@@ -288,7 +303,7 @@ def get_invite_details(token: str):
         "student_name": invite["student_name"],
         "student_email": invite["student_email"],
         "student_roll_number": invite["student_roll_number"],
-        "validity_period_years": invite["validity_period_years"],
+        "validity_period_years": invite.get("access_validity_years"),
         "status": invite["application_status"],
     }
 
@@ -323,7 +338,7 @@ def claim_invite(
     try:
         result = db.table("institution_students")\
             .select("id, institution_id, student_name, student_email, "
-                    "student_roll_number, validity_period_years, "
+                    "student_roll_number, access_validity_years, "
                     "invite_claimed_at, application_status, invited_by")\
             .eq("invite_token", request.invite_token)\
             .execute()
