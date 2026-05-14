@@ -31,10 +31,12 @@ export default function PublisherDashboard() {
   const [books, setBooks]               = useState<any[]>([]);
   const [revenueData, setRevenueData]   = useState<any>(null);
   const [payoutData, setPayoutData]     = useState<any[]>([]);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [loadingMe, setLoadingMe]       = useState(true);
   const [loadingBooks, setLoadingBooks] = useState(true);
   const [loadingRevenue, setLoadingRevenue] = useState(true);
   const [loadingPayouts, setLoadingPayouts] = useState(true);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(true);
   const [fetchError, setFetchError]     = useState<string>("");
 
   const fetchAll = async () => {
@@ -76,6 +78,14 @@ export default function PublisherDashboard() {
       setPayoutData(d.payouts || []);
     } catch (e) { setPayoutData([]); }
     finally { setLoadingPayouts(false); }
+
+    // /publisher/analytics
+    setLoadingAnalytics(true);
+    try {
+      const r = await fetch(`${API_URL}/api/publisher/analytics?days=30`, { headers });
+      setAnalyticsData(r.ok ? await r.json() : null);
+    } catch (e) { setAnalyticsData(null); }
+    finally { setLoadingAnalytics(false); }
   };
 
   useEffect(() => {
@@ -569,18 +579,168 @@ const handleUpload = async () => {
         )}
 
         {/* ANALYTICS */}
-        {/* ANALYTICS */}
         {activeTab === "analytics" && (
-          <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
-            <p style={{ fontSize: "32px", margin: "0 0 12px" }}>📊</p>
-            <p style={{ fontSize: "18px", fontWeight: 500, color: "#2C2C2A", margin: "0 0 8px", fontFamily: "'DM Serif Display', serif" }}>Analytics coming soon</p>
-            <p style={{ fontSize: "13px", color: "#888780", margin: "0 0 8px", maxWidth: "500px", marginLeft: "auto", marginRight: "auto", lineHeight: 1.6 }}>
-              Detailed query analytics will appear here once your books receive meaningful traffic. We are working on chapter breakdowns,
-              query patterns, and reader engagement insights.
-            </p>
-            <p style={{ fontSize: "12px", color: "#888780", margin: "16px 0 0" }}>
-              Current: <strong>{totalQueries.toLocaleString()}</strong> total queries across <strong>{totalBooks}</strong> books.
-            </p>
+          <div>
+            {loadingAnalytics ? (
+              <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
+                <p style={{ fontSize: "13px", color: "#888780" }}>Loading analytics...</p>
+              </div>
+            ) : !analyticsData ? (
+              <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
+                <p style={{ fontSize: "13px", color: "#888780", margin: 0 }}>Analytics could not be loaded right now. Please try refreshing.</p>
+              </div>
+            ) : (
+              <>
+                {/* Honest empty/sparse state message — shows above the data */}
+                {(analyticsData.summary?.total_queries ?? 0) < 10 && (
+                  <div style={{
+                    background: "#FFFBEC", border: "1px solid #FFE4A3",
+                    borderRadius: "10px", padding: "14px 18px", marginBottom: "20px",
+                  }}>
+                    <p style={{ fontSize: "12px", color: "#854F0B", margin: 0, lineHeight: 1.6 }}>
+                      <strong>Activity is just getting started.</strong>{" "}
+                      Your books have received {analyticsData.summary?.total_queries ?? 0} {analyticsData.summary?.total_queries === 1 ? "query" : "queries"} so far. These charts will become more useful as readers engage with your content.
+                    </p>
+                  </div>
+                )}
+
+                {/* Summary stat cards */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
+                  {[
+                    { label: "Queries (30d)",      value: (analyticsData.summary?.total_queries ?? 0).toLocaleString(),       color: "#7F77DD" },
+                    { label: "Output tokens (30d)", value: (analyticsData.summary?.total_output_tokens ?? 0).toLocaleString(), color: "#1D9E75" },
+                    { label: "Input tokens (30d)",  value: (analyticsData.summary?.total_input_tokens ?? 0).toLocaleString(),  color: "#378ADD" },
+                    { label: "Active days",         value: `${analyticsData.summary?.days_with_activity ?? 0} / ${analyticsData.window_days ?? 30}`, color: "#EF9F27" },
+                  ].map((stat, i) => (
+                    <div key={i} style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "20px" }}>
+                      <p style={{ fontSize: "11px", color: "#888780", margin: "0 0 6px", textTransform: "uppercase" as const, letterSpacing: "0.4px" }}>{stat.label}</p>
+                      <p style={{ fontSize: "22px", fontFamily: "'DM Serif Display', serif", color: stat.color, margin: 0 }}>{stat.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Daily queries chart */}
+                <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
+                  <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 4px" }}>Daily queries — last {analyticsData.window_days} days</p>
+                  <p style={{ fontSize: "11px", color: "#888780", margin: "0 0 18px" }}>
+                    {analyticsData.start_date} → {analyticsData.end_date}
+                  </p>
+
+                  {(() => {
+                    const daily = analyticsData.daily_totals || [];
+                    const maxQueries = Math.max(1, ...daily.map((d: any) => d.queries));
+                    return (
+                      <>
+                        {/* Bar chart */}
+                        <div style={{
+                          display: "flex", alignItems: "flex-end", gap: "2px",
+                          height: "120px", padding: "8px 0",
+                          borderBottom: "1px solid #f0efea",
+                        }}>
+                          {daily.map((d: any, i: number) => {
+                            const heightPct = d.queries > 0 ? (d.queries / maxQueries) * 100 : 0;
+                            return (
+                              <div
+                                key={i}
+                                title={`${d.date}: ${d.queries} ${d.queries === 1 ? "query" : "queries"}`}
+                                style={{
+                                  flex: 1,
+                                  height: d.queries > 0 ? `${Math.max(heightPct, 4)}%` : "1px",
+                                  background: d.queries > 0 ? "#7F77DD" : "#e5e4dc",
+                                  borderRadius: "2px 2px 0 0",
+                                  minHeight: d.queries > 0 ? "4px" : "1px",
+                                  transition: "background 0.2s",
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+
+                        {/* Date axis labels — show only endpoints + middle */}
+                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px" }}>
+                          <p style={{ fontSize: "10px", color: "#888780", margin: 0 }}>
+                            {daily[0]?.date ? new Date(daily[0].date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
+                          </p>
+                          <p style={{ fontSize: "10px", color: "#888780", margin: 0 }}>
+                            {daily[Math.floor(daily.length / 2)]?.date ? new Date(daily[Math.floor(daily.length / 2)].date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
+                          </p>
+                          <p style={{ fontSize: "10px", color: "#888780", margin: 0 }}>
+                            {daily[daily.length - 1]?.date ? new Date(daily[daily.length - 1].date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
+                          </p>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* Per-book breakdown */}
+                <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", overflow: "hidden" }}>
+                  <div style={{ padding: "20px 24px", borderBottom: "0.5px solid #e5e4dc" }}>
+                    <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: 0 }}>Per-book activity</p>
+                    <p style={{ fontSize: "11px", color: "#888780", margin: "4px 0 0" }}>Sorted by query volume in the last {analyticsData.window_days} days</p>
+                  </div>
+
+                  {analyticsData.per_book_totals && analyticsData.per_book_totals.length > 0 ? (
+                    <div>
+                      {analyticsData.per_book_totals.map((b: any, idx: number) => {
+                        const maxDaily = Math.max(1, ...b.daily.map((d: any) => d.queries));
+                        return (
+                          <div key={b.book_id} style={{ padding: "18px 24px", borderBottom: idx < analyticsData.per_book_totals.length - 1 ? "0.5px solid #f0efea" : "none" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px", gap: "16px" }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: "13px", fontWeight: 500, color: "#2C2C2A", margin: 0 }}>{b.book_title}</p>
+                                <p style={{ fontSize: "11px", color: "#888780", margin: "3px 0 0" }}>
+                                  {b.queries} {b.queries === 1 ? "query" : "queries"} · {b.output_tokens.toLocaleString()} output tokens
+                                </p>
+                              </div>
+                            </div>
+                            {/* Sparkline */}
+                            <div style={{
+                              display: "flex", alignItems: "flex-end", gap: "1px",
+                              height: "32px", padding: "2px 0",
+                            }}>
+                              {b.daily.map((d: any, i: number) => {
+                                const heightPct = d.queries > 0 ? (d.queries / maxDaily) * 100 : 0;
+                                return (
+                                  <div
+                                    key={i}
+                                    title={`${d.date}: ${d.queries}`}
+                                    style={{
+                                      flex: 1,
+                                      height: d.queries > 0 ? `${Math.max(heightPct, 8)}%` : "1px",
+                                      background: d.queries > 0 ? "#1D9E75" : "#f0efea",
+                                      borderRadius: "1px",
+                                      minHeight: d.queries > 0 ? "2px" : "1px",
+                                    }}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ padding: "32px", textAlign: "center" as const }}>
+                      <p style={{ fontSize: "13px", color: "#888780", margin: 0 }}>
+                        No book activity in this period. Once your books are queried by readers, per-book trends will appear here.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Honest disclosure about what's NOT here yet */}
+                <div style={{
+                  background: "white", border: "0.5px dashed #e5e4dc",
+                  borderRadius: "12px", padding: "18px 22px", marginTop: "20px",
+                }}>
+                  <p style={{ fontSize: "12px", color: "#888780", margin: 0, lineHeight: 1.6 }}>
+                    <strong style={{ color: "#5F5E5A" }}>Coming later:</strong>{" "}
+                    chapter-level breakdowns, top-queried passages, and reader composition (institutional vs individual). These require additional data tracking we'll roll out as the platform matures.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         )}
 

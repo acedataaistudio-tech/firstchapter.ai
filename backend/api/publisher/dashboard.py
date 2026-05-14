@@ -527,3 +527,136 @@ def update_publisher_profile(
         "publisher_id": publisher_id,
         "fields_updated": [k for k in payload.keys() if k != "updated_at"],
     }
+
+
+# ──────────────────────────────────────────────────────────────────
+# GET /publisher/analytics — daily query/token breakdown
+# ──────────────────────────────────────────────────────────────────
+@router.get("/publisher/analytics")
+def publisher_analytics(
+    days: int = 30,
+    x_user_id: str = Header(default="anonymous"),
+):
+    """
+    Returns daily activity for the publisher's books over the last N days (default 30).
+
+    Response shape:
+      - daily_totals: [{date, queries, output_tokens, input_tokens}]  — full window with zeros
+      - per_book_totals: [{book_id, book_title, queries, output_tokens, daily: [{date, queries}]}]
+      - summary: {total_queries, total_output_tokens, total_input_tokens, days_with_activity}
+    """
+    pub = get_authed_publisher(x_user_id)
+    db = get_db()
+    publisher_id = pub["id"]
+
+    days = max(1, min(days, 90))  # clamp 1..90
+
+    # ── Resolve date window ──────────────────────────────────
+    today = datetime.utcnow().date()
+    start_date = today - timedelta(days=days - 1)  # inclusive window
+    cutoff_iso = datetime.combine(start_date, datetime.min.time()).isoformat()
+
+    # ── Build the empty daily skeleton (so days with 0 activity still show) ──
+    date_keys: List[str] = []
+    skeleton: Dict[str, Dict[str, int]] = {}
+    for i in range(days):
+        d = (start_date + timedelta(days=i)).isoformat()
+        date_keys.append(d)
+        skeleton[d] = {"queries": 0, "output_tokens": 0, "input_tokens": 0}
+
+    # ── Pull token_usage in window ────────────────────────────
+    per_book: Dict[str, Dict[str, Any]] = {}  # book_id -> aggregate
+
+    try:
+        usage_res = db.table("token_usage")\
+            .select("books_used, output_tokens, input_tokens, created_at")\
+            .gte("created_at", cutoff_iso)\
+            .execute()
+
+        if usage_res.data:
+            for row in usage_res.data:
+                books_used = row.get("books_used") or []
+                relevant = [b for b in books_used if (b or {}).get("publisher_id") == publisher_id]
+                if not relevant:
+                    continue
+
+                ts = row.get("created_at") or ""
+                day_key = ts[:10]  # YYYY-MM-DD
+                if day_key not in skeleton:
+                    # Outside our window (shouldn't happen given the .gte filter, but safe)
+                    continue
+
+                output_tokens = int(row.get("output_tokens") or 0)
+                input_tokens = int(row.get("input_tokens") or 0)
+
+                # Overall daily totals
+                skeleton[day_key]["queries"] += 1
+                skeleton[day_key]["output_tokens"] += output_tokens
+                skeleton[day_key]["input_tokens"] += input_tokens
+
+                # Per-book aggregation
+                for b in relevant:
+                    bid = b.get("book_id")
+                    btitle = b.get("book_title") or "Untitled"
+                    tokens_attributed = int(b.get("tokens_attributed") or 0)
+
+                    if bid not in per_book:
+                        per_book[bid] = {
+                            "book_id": bid,
+                            "book_title": btitle,
+                            "queries": 0,
+                            "output_tokens": 0,
+                            "daily": {dk: 0 for dk in date_keys},
+                        }
+                    per_book[bid]["queries"] += 1
+                    per_book[bid]["output_tokens"] += tokens_attributed
+                    if day_key in per_book[bid]["daily"]:
+                        per_book[bid]["daily"][day_key] += 1
+    except Exception as e:
+        print(f"⚠️ analytics aggregation failed: {e}")
+
+    # ── Flatten to arrays in date order ───────────────────────
+    daily_totals = [
+        {
+            "date": dk,
+            "queries": skeleton[dk]["queries"],
+            "output_tokens": skeleton[dk]["output_tokens"],
+            "input_tokens": skeleton[dk]["input_tokens"],
+        }
+        for dk in date_keys
+    ]
+
+    per_book_list = []
+    for bid, agg in per_book.items():
+        per_book_list.append({
+            "book_id": agg["book_id"],
+            "book_title": agg["book_title"],
+            "queries": agg["queries"],
+            "output_tokens": agg["output_tokens"],
+            "daily": [
+                {"date": dk, "queries": agg["daily"].get(dk, 0)}
+                for dk in date_keys
+            ],
+        })
+    per_book_list.sort(key=lambda x: x["queries"], reverse=True)
+
+    # ── Summary ──────────────────────────────────────────────
+    total_queries = sum(d["queries"] for d in daily_totals)
+    total_output = sum(d["output_tokens"] for d in daily_totals)
+    total_input = sum(d["input_tokens"] for d in daily_totals)
+    days_with_activity = sum(1 for d in daily_totals if d["queries"] > 0)
+
+    return {
+        "publisher_id": publisher_id,
+        "window_days": days,
+        "start_date": date_keys[0],
+        "end_date": date_keys[-1],
+        "summary": {
+            "total_queries": total_queries,
+            "total_output_tokens": total_output,
+            "total_input_tokens": total_input,
+            "days_with_activity": days_with_activity,
+        },
+        "daily_totals": daily_totals,
+        "per_book_totals": per_book_list,
+    }
