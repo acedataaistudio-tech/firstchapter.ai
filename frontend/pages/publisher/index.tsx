@@ -119,7 +119,7 @@ export default function PublisherDashboard() {
       cover_url:    b.cover_url || "",
       uploaded:     b.created_at ? b.created_at.split("T")[0] : "—",
       rightsExpiry: expiryDate ? expiryDate.toISOString().split("T")[0] : "—",
-      topChapters:  [],          // not tracked yet (Session 4 Analytics)
+      topChapters:  [] as Array<{ chapter: string; queries: number }>,  // not tracked yet (Session 4 Analytics)
     };
   });
 
