@@ -43,6 +43,21 @@ export default function AdminDashboard() {
   const [loadingPublishers, setLoadingPublishers] = useState(false);
   const [publisherFilter, setPublisherFilter] = useState<"pending" | "all" | "approved" | "rejected">("pending");
 
+  // ─── Institutions list (for effective-role lookup) ───────────────────
+  // We fetch approved institutions to identify which Clerk user_ids are
+  // institution admins. Used to display correct user-type in the user list.
+  const [approvedInstitutions, setApprovedInstitutions] = useState<any[]>([]);
+
+  const fetchApprovedInstitutions = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/admin/institutions/list?status=approved`, { headers: ADMIN_HEADERS });
+      const data = await res.json();
+      setApprovedInstitutions(data.institutions || []);
+    } catch (e) {
+      console.error("Failed to fetch institutions:", e);
+    }
+  };
+
   // Approve modal
   const [approveTarget, setApproveTarget] = useState<any>(null);
   const [approveRate, setApproveRate] = useState<number | "">(7.5);  // ₹ per 1M output tokens
@@ -315,7 +330,12 @@ export default function AdminDashboard() {
   // Load data when tab changes
   useEffect(() => {
     if (!authenticated) return;
-    if (activeTab === "users" || activeTab === "overview") fetchUsers();
+    if (activeTab === "users" || activeTab === "overview") {
+      fetchUsers();
+      // We need publishers + institutions to compute effective user-types
+      fetchAllPublishers("approved");
+      fetchApprovedInstitutions();
+    }
     if (activeTab === "books" || activeTab === "overview") fetchBooks();
     if (activeTab === "publishers") {
       if (publisherFilter === "pending") {
@@ -331,8 +351,43 @@ export default function AdminDashboard() {
     else setPasswordError(true);
   };
 
+  // ─── Compute the user's effective role from cross-table data ─────────
+  // The `users.role` column in DB is almost always "reader" regardless of
+  // actual user-type. We derive the real role by cross-referencing
+  // publishers and institutions tables (fetched separately).
+  //
+  // Priority order matters: a user who is both a publisher AND has an
+  // institution_id (rare but possible) is displayed as Publisher first.
+  const getEffectiveRole = (user: any): string => {
+    if (!user) return "Reader";
+    if (user.status === "suspended") return "Suspended";
+
+    const userId = user.id;
+    const isPublisher = allPublishers.some(p => p.clerk_user_id === userId);
+    if (isPublisher) return "Publisher";
+
+    const isInstitutionAdmin = approvedInstitutions.some(i => i.clerk_user_id === userId);
+    if (isInstitutionAdmin) return "Institution Admin";
+
+    if (user.institution_id) return "Student";
+    return "Reader";
+  };
+
+  // Used by the filter chip + role-color picker
+  const roleToFilterValue = (effectiveRole: string): string => {
+    return effectiveRole.toLowerCase().replace(/\s+/g, "");
+    // "Publisher" → "publisher"
+    // "Institution Admin" → "institutionadmin"
+    // "Student" → "student"
+    // "Reader" → "reader"
+    // "Suspended" → "suspended"
+  };
+
   const filteredUsers = users
-    .filter(u => userFilter === "all" || u.role === userFilter)
+    .filter(u => {
+      if (userFilter === "all") return true;
+      return roleToFilterValue(getEffectiveRole(u)) === userFilter.toLowerCase().replace(/\s+/g, "");
+    })
     .filter(u => u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase()));
 
   const filteredBooks = books.filter(b =>
@@ -342,11 +397,13 @@ export default function AdminDashboard() {
   );
 
   const roleColor = (role: string) => {
-    if (role === "admin")       return { bg: "#FCEBEB", color: "#A32D2D" };
-    if (role === "publisher")   return { bg: "#EEEDFE", color: "#534AB7" };
-    if (role === "institution") return { bg: "#E6F1FB", color: "#185FA5" };
-    if (role === "suspended")   return { bg: "#f0efea", color: "#888780" };
-    return { bg: "#E1F5EE", color: "#0F6E56" };
+    // role here is the filter-key form (lowercase, no spaces)
+    if (role === "admin" || role === "platformadmin") return { bg: "#FCEBEB", color: "#A32D2D" };
+    if (role === "publisher")                          return { bg: "#EEEDFE", color: "#534AB7" };
+    if (role === "institutionadmin" || role === "institution") return { bg: "#FAEEDA", color: "#854F0B" };
+    if (role === "student")                            return { bg: "#E6F1FB", color: "#185FA5" };
+    if (role === "suspended")                          return { bg: "#f0efea", color: "#888780" };
+    return { bg: "#E1F5EE", color: "#0F6E56" }; // reader (default)
   };
 
   const inputStyle: any = {
@@ -487,11 +544,20 @@ export default function AdminDashboard() {
               <div style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "24px" }}>
                 <p style={{ fontSize: "14px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 20px" }}>User breakdown</p>
                 {loadingUsers ? <p style={{ fontSize: "13px", color: "#888780" }}>Loading...</p> : (
-                  [
-                    { label: "Readers",      value: users.filter(u => u.role === "reader" || !u.role).length,      color: "#1D9E75" },
-                    { label: "Publishers",   value: users.filter(u => u.role === "publisher").length,    color: "#7F77DD" },
-                    { label: "Institutions", value: users.filter(u => u.role === "institution").length,  color: "#378ADD" },
-                  ].map((item, i) => (
+                  (() => {
+                    // Compute effective-role counts once
+                    const buckets = { "Reader": 0, "Student": 0, "Publisher": 0, "Institution Admin": 0 };
+                    users.forEach(u => {
+                      const r = getEffectiveRole(u);
+                      if (r in buckets) (buckets as any)[r]++;
+                    });
+                    return [
+                      { label: "Readers",            value: buckets["Reader"],            color: "#1D9E75" },
+                      { label: "Students",           value: buckets["Student"],           color: "#378ADD" },
+                      { label: "Publishers",         value: buckets["Publisher"],         color: "#7F77DD" },
+                      { label: "Institution Admins", value: buckets["Institution Admin"], color: "#EF9F27" },
+                    ];
+                  })().map((item, i) => (
                     <div key={i} style={{ marginBottom: "14px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
                         <p style={{ fontSize: "13px", color: "#2C2C2A", margin: 0 }}>{item.label}</p>
@@ -525,13 +591,21 @@ export default function AdminDashboard() {
         {/* USERS */}
         {activeTab === "users" && (
           <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
-              {[
-                { label: "Total users",   value: users.length,                                              color: "#2C2C2A" },
-                { label: "Readers",       value: users.filter(u => u.role === "reader" || !u.role).length,  color: "#1D9E75" },
-                { label: "Publishers",    value: users.filter(u => u.role === "publisher").length,           color: "#7F77DD" },
-                { label: "Institutions",  value: users.filter(u => u.role === "institution").length,         color: "#378ADD" },
-              ].map((stat, i) => (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px", marginBottom: "24px" }}>
+              {(() => {
+                const buckets = { "Reader": 0, "Student": 0, "Publisher": 0, "Institution Admin": 0 };
+                users.forEach(u => {
+                  const r = getEffectiveRole(u);
+                  if (r in buckets) (buckets as any)[r]++;
+                });
+                return [
+                  { label: "Total users",         value: users.length,                color: "#2C2C2A" },
+                  { label: "Readers",             value: buckets["Reader"],           color: "#1D9E75" },
+                  { label: "Students",            value: buckets["Student"],          color: "#378ADD" },
+                  { label: "Publishers",          value: buckets["Publisher"],        color: "#7F77DD" },
+                  { label: "Institution Admins",  value: buckets["Institution Admin"], color: "#EF9F27" },
+                ];
+              })().map((stat, i) => (
                 <div key={i} style={{ background: "white", border: "0.5px solid #e5e4dc", borderRadius: "12px", padding: "20px" }}>
                   <p style={{ fontSize: "12px", color: "#888780", margin: "0 0 8px" }}>{stat.label}</p>
                   <p style={{ fontSize: "28px", fontFamily: "'DM Serif Display', serif", color: stat.color, margin: 0 }}>
@@ -541,19 +615,24 @@ export default function AdminDashboard() {
               ))}
             </div>
 
-            <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
+            <div style={{ display: "flex", gap: "12px", marginBottom: "20px", flexWrap: "wrap" as const }}>
               <input type="text" placeholder="Search by name or email..." value={userSearch} onChange={e => setUserSearch(e.target.value)}
-                style={{ flex: 1, padding: "10px 16px", border: "0.5px solid #e5e4dc", borderRadius: "100px", fontSize: "13px", outline: "none", fontFamily: "'DM Sans', sans-serif" }} />
-              {["all", "reader", "publisher", "institution"].map(f => (
-                <button key={f} onClick={() => setUserFilter(f)} style={{
+                style={{ flex: 1, minWidth: "200px", padding: "10px 16px", border: "0.5px solid #e5e4dc", borderRadius: "100px", fontSize: "13px", outline: "none", fontFamily: "'DM Sans', sans-serif" }} />
+              {[
+                { value: "all",              label: "All" },
+                { value: "reader",           label: "Readers" },
+                { value: "student",          label: "Students" },
+                { value: "publisher",        label: "Publishers" },
+                { value: "institutionadmin", label: "Institution Admins" },
+              ].map(f => (
+                <button key={f.value} onClick={() => setUserFilter(f.value)} style={{
                   padding: "8px 20px", borderRadius: "100px",
-                  border: userFilter === f ? "none" : "0.5px solid #e5e4dc",
-                  background: userFilter === f ? "#2C2C2A" : "white",
-                  color: userFilter === f ? "white" : "#5F5E5A",
+                  border: userFilter === f.value ? "none" : "0.5px solid #e5e4dc",
+                  background: userFilter === f.value ? "#2C2C2A" : "white",
+                  color: userFilter === f.value ? "white" : "#5F5E5A",
                   fontSize: "13px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-                  textTransform: "capitalize" as const,
                 }}>
-                  {f}
+                  {f.label}
                 </button>
               ))}
               <button onClick={fetchUsers} style={{ padding: "8px 16px", borderRadius: "100px", border: "0.5px solid #e5e4dc", background: "white", color: "#5F5E5A", fontSize: "13px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
@@ -577,7 +656,8 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody>
                     {filteredUsers.map((user, i) => {
-                      const rc = roleColor(user.status === "suspended" ? "suspended" : user.role || "reader");
+                      const effectiveRole = getEffectiveRole(user);
+                      const rc = roleColor(user.status === "suspended" ? "suspended" : roleToFilterValue(effectiveRole));
                       return (
                         <tr key={user.id} style={{ borderBottom: i < filteredUsers.length - 1 ? "0.5px solid #f0efea" : "none" }}>
                           <td style={{ padding: "14px 20px" }}>
@@ -592,8 +672,8 @@ export default function AdminDashboard() {
                             </div>
                           </td>
                           <td style={{ padding: "14px 20px" }}>
-                            <span style={{ fontSize: "11px", padding: "3px 10px", borderRadius: "100px", background: rc.bg, color: rc.color, textTransform: "capitalize" as const }}>
-                              {user.role || "reader"}
+                            <span style={{ fontSize: "11px", padding: "3px 10px", borderRadius: "100px", background: rc.bg, color: rc.color }}>
+                              {effectiveRole}
                             </span>
                           </td>
                           <td style={{ padding: "14px 20px", fontSize: "13px", color: "#888780" }}>
