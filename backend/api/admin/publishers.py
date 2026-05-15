@@ -283,3 +283,154 @@ def review_publisher(
 
     # Should never get here due to Literal type
     raise HTTPException(status_code=400, detail=f"Unknown action: {request.action}")
+
+
+# ──────────────────────────────────────────────────────────────────
+# POST /admin/publishers/{publisher_id}/suspend
+# Suspends a publisher — removes ALL their books from Qdrant + Supabase,
+# marks publisher as inactive. Destructive; reactivation requires
+# re-uploading books from source PDFs.
+# ──────────────────────────────────────────────────────────────────
+class SuspendPublisherRequest(BaseModel):
+    reason: Optional[str] = None  # Audit trail — why this publisher was suspended
+
+
+@router.post("/admin/publishers/{publisher_id}/suspend")
+def admin_suspend_publisher(
+    publisher_id: str,
+    request: SuspendPublisherRequest,
+    x_admin_secret: str = Header(...),
+):
+    """
+    Suspends a publisher: deletes all their books from BOTH Supabase and
+    Qdrant, then marks the publisher row as inactive.
+
+    This is destructive — books cannot be recovered without re-ingesting
+    the original PDFs. Reactivation is a manual process.
+
+    Returns a summary of what was deleted.
+    """
+    verify_admin(x_admin_secret)
+    db = get_db()
+
+    # ── 1. Resolve publisher ───────────────────────────────────
+    try:
+        pub_res = db.table("publishers")\
+            .select("id, name, application_status, is_active")\
+            .eq("id", publisher_id)\
+            .execute()
+    except Exception as e:
+        print(f"❌ Publisher lookup failed during suspend: {e}")
+        raise HTTPException(status_code=500, detail="Could not look up publisher.")
+
+    if not pub_res.data or len(pub_res.data) == 0:
+        raise HTTPException(status_code=404, detail="Publisher not found.")
+
+    pub = pub_res.data[0]
+    if not pub.get("is_active"):
+        raise HTTPException(status_code=400, detail=f"Publisher {pub.get('name')} is already suspended.")
+
+    # ── 2. Fetch all books owned by this publisher ─────────────
+    try:
+        books_res = db.table("books")\
+            .select("id, title")\
+            .eq("publisher_id", publisher_id)\
+            .execute()
+    except Exception as e:
+        print(f"❌ Books lookup failed during publisher suspend: {e}")
+        raise HTTPException(status_code=500, detail="Could not fetch publisher's books.")
+
+    books = books_res.data or []
+
+    # ── 3. Delete each book from Qdrant + Supabase ─────────────
+    # Same pattern as admin_core.py's admin_delete_book — Qdrant first
+    # (so a partial failure leaves a recoverable trail in Supabase rather
+    # than orphan chunks).
+    deleted_books = []
+    failed_books = []
+
+    if books:
+        try:
+            from ingestion.pipeline import get_qdrant_client
+            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            from config import settings as cfg
+            qdrant_client = get_qdrant_client()
+        except Exception as e:
+            print(f"❌ Qdrant client init failed: {e}")
+            raise HTTPException(status_code=500, detail="Could not connect to vector store.")
+
+        for book in books:
+            book_id = book.get("id")
+            book_title = book.get("title", "Untitled")
+            try:
+                # Delete chunks from Qdrant FIRST
+                qdrant_client.delete(
+                    collection_name=cfg.collection_name,
+                    points_selector=Filter(
+                        must=[FieldCondition(
+                            key="metadata.book_id",
+                            match=MatchValue(value=book_id),
+                        )]
+                    ),
+                )
+            except Exception as qe:
+                # Don't abort the whole suspension if one book's Qdrant
+                # delete fails — log it and keep going.
+                print(f"⚠️ Qdrant delete failed for book {book_id} ({book_title}): {qe}")
+                failed_books.append({"book_id": book_id, "title": book_title, "reason": "Qdrant delete failed"})
+                continue
+
+            try:
+                # Then delete the Supabase row
+                db.table("books").delete().eq("id", book_id).execute()
+                deleted_books.append({"book_id": book_id, "title": book_title})
+            except Exception as se:
+                print(f"⚠️ Supabase delete failed for book {book_id} ({book_title}): {se}")
+                failed_books.append({"book_id": book_id, "title": book_title, "reason": "Supabase delete failed"})
+                # Chunks already gone from Qdrant; the book row remains in
+                # Supabase as an orphan. Admin can retry suspending — Qdrant
+                # delete is idempotent for already-empty results.
+
+    # ── 4. Mark publisher as inactive ──────────────────────────
+    now_iso = datetime.utcnow().isoformat()
+    suspend_payload = {
+        "is_active": False,
+        "application_status": "suspended",
+        "updated_at": now_iso,
+    }
+    # If your publishers table has a 'suspended_at' or 'suspension_reason'
+    # column, set those too. Otherwise these will silently be ignored if
+    # the column doesn't exist (Supabase rejects unknown columns).
+    if request.reason:
+        suspend_payload["rejection_reason"] = request.reason  # Reuse existing column
+
+    try:
+        db.table("publishers").update(suspend_payload).eq("id", publisher_id).execute()
+    except Exception as e:
+        print(f"❌ Failed to mark publisher inactive after deleting books: {e}")
+        # The books are already deleted — fail loudly so admin knows the
+        # state is inconsistent. They should manually verify and fix.
+        raise HTTPException(
+            status_code=500,
+            detail=f"Books deleted ({len(deleted_books)}) but failed to mark publisher inactive. Manual cleanup needed."
+        )
+
+    print(f"✅ Suspended publisher {pub.get('name')}: {len(deleted_books)} books removed, {len(failed_books)} failed")
+
+    return {
+        "success": True,
+        "publisher_id": publisher_id,
+        "publisher_name": pub.get("name"),
+        "summary": {
+            "books_deleted": len(deleted_books),
+            "books_failed": len(failed_books),
+            "total_books": len(books),
+        },
+        "deleted_books": deleted_books,
+        "failed_books": failed_books,
+        "message": (
+            f"Publisher {pub.get('name')} suspended. "
+            f"{len(deleted_books)} of {len(books)} books removed from the platform. "
+            + (f"{len(failed_books)} failed — see details." if failed_books else "")
+        ),
+    }

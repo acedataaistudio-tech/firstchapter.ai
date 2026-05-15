@@ -71,6 +71,13 @@ export default function AdminDashboard() {
   const [rejectSubmitting, setRejectSubmitting] = useState(false);
   const [rejectError, setRejectError] = useState("");
 
+  // Suspend modal — for already-approved publishers
+  const [suspendTarget, setSuspendTarget] = useState<any>(null);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [suspendSubmitting, setSuspendSubmitting] = useState(false);
+  const [suspendError, setSuspendError] = useState("");
+  const [suspendResult, setSuspendResult] = useState<any>(null);  // Shows summary after success
+
   // Fetch pending publishers
   const fetchPendingPublishers = async () => {
     setLoadingPublishers(true);
@@ -176,6 +183,43 @@ export default function AdminDashboard() {
       setRejectError("Network error — please try again");
     } finally {
       setRejectSubmitting(false);
+    }
+  };
+
+  // Suspend handler — destructively removes all publisher's books from
+  // Qdrant + Supabase, then marks the publisher inactive. Irreversible
+  // without re-uploading from source PDFs.
+  const handleSuspendPublisher = async () => {
+    if (!suspendTarget) return;
+    if (!suspendReason.trim()) {
+      setSuspendError("Please provide a reason — this will be recorded for audit.");
+      return;
+    }
+    setSuspendSubmitting(true);
+    setSuspendError("");
+    try {
+      const res = await fetch(
+        `${API_URL}/api/admin/publishers/${suspendTarget.id}/suspend`,
+        {
+          method: "POST",
+          headers: ADMIN_HEADERS,
+          body: JSON.stringify({ reason: suspendReason.trim() }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setSuspendError(typeof data.detail === "string" ? data.detail : "Suspension failed");
+        setSuspendSubmitting(false);
+        return;
+      }
+      // Success — show the result summary, refresh data
+      setSuspendResult(data);
+      fetchAllPublishers(publisherFilter);
+      fetchBooks();  // Books list also changed
+    } catch (e) {
+      setSuspendError("Network error — please try again");
+    } finally {
+      setSuspendSubmitting(false);
     }
   };
 
@@ -986,7 +1030,7 @@ export default function AdminDashboard() {
           <table style={{ width: "100%", borderCollapse: "collapse" as const }}>
             <thead>
               <tr style={{ background: "#f9f9f7" }}>
-                {["Publisher", "Type", "Email", "Status", "Rate (₹/M)", "Books", "Revenue", "Applied"].map(h => (
+                {["Publisher", "Type", "Email", "Status", "Rate (₹/M)", "Books", "Revenue", "Applied", "Actions"].map(h => (
                   <th key={h} style={{ padding: "12px 20px", textAlign: "left" as const, fontSize: "11px", color: "#888780", fontWeight: "500", borderBottom: "0.5px solid #e5e4dc" }}>{h}</th>
                 ))}
               </tr>
@@ -1023,6 +1067,32 @@ export default function AdminDashboard() {
                     <td style={{ padding: "14px 20px", fontSize: "13px", color: "#5F5E5A" }}>{revenue}</td>
                     <td style={{ padding: "14px 20px", fontSize: "12px", color: "#888780" }}>
                       {pub.applied_at ? new Date(pub.applied_at).toLocaleDateString("en-IN") : "—"}
+                    </td>
+                    <td style={{ padding: "14px 20px" }}>
+                      {pub.application_status === "approved" && pub.is_active !== false ? (
+                        <button
+                          onClick={() => {
+                            setSuspendTarget(pub);
+                            setSuspendReason("");
+                            setSuspendError("");
+                            setSuspendResult(null);
+                          }}
+                          style={{
+                            background: "#FCEBEB",
+                            color: "#A32D2D",
+                            border: "none",
+                            borderRadius: "100px",
+                            padding: "4px 12px",
+                            fontSize: "11px",
+                            cursor: "pointer",
+                            fontFamily: "'DM Sans', sans-serif",
+                          }}
+                        >
+                          Suspend
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: "11px", color: "#bbb" }}>—</span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -1347,6 +1417,169 @@ export default function AdminDashboard() {
                 {rejectSubmitting ? "Rejecting..." : "Reject & send email"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── SUSPEND PUBLISHER MODAL ─────────────────────────── */}
+      {/* Destructive — removes all of the publisher's books from Qdrant
+          and Supabase, then marks the publisher inactive. Shows summary
+          of what was deleted after success. */}
+      {suspendTarget && (
+        <div style={{
+          position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.4)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "16px", zIndex: 1000,
+        }}>
+          <div style={{
+            background: "white", borderRadius: "16px", padding: "28px",
+            maxWidth: "520px", width: "100%",
+          }}>
+            {!suspendResult ? (
+              // ── Confirmation form ──
+              <>
+                <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "22px", color: "#2C2C2A", margin: "0 0 6px" }}>
+                  Suspend publisher
+                </h3>
+                <p style={{ fontSize: "13px", color: "#888780", margin: "0 0 20px" }}>
+                  <strong>{suspendTarget.name}</strong> · {suspendTarget.email}
+                </p>
+
+                <div style={{
+                  background: "#FDEDEC", border: "1px solid #F5B7B1",
+                  borderRadius: "8px", padding: "12px 14px", marginBottom: "20px",
+                }}>
+                  <p style={{ fontSize: "12px", color: "#922B21", margin: "0 0 6px", fontWeight: 600 }}>
+                    ⚠️ This action is destructive and irreversible.
+                  </p>
+                  <p style={{ fontSize: "12px", color: "#922B21", margin: 0, lineHeight: 1.5 }}>
+                    All <strong>{suspendTarget.total_books || 0} books</strong> by this publisher will be deleted
+                    from the search index and the platform catalog. Readers will no longer find their content.
+                    Reactivation requires the publisher to re-upload from their original PDFs.
+                  </p>
+                </div>
+
+                <div style={{ marginBottom: "16px" }}>
+                  <label style={{ fontSize: "12px", color: "#888780", display: "block", marginBottom: "6px" }}>
+                    Reason for suspension <span style={{ color: "#E24B4A" }}>*</span>
+                  </label>
+                  <textarea
+                    value={suspendReason}
+                    onChange={e => setSuspendReason(e.target.value)}
+                    placeholder="e.g., Repeated content moderation violations after warning. See ticket #4521."
+                    rows={3}
+                    style={{
+                      width: "100%", padding: "11px 14px",
+                      border: "0.5px solid #e5e4dc", borderRadius: "10px",
+                      fontSize: "13px", outline: "none", fontFamily: "'DM Sans', sans-serif",
+                      resize: "none" as const,
+                    }}
+                  />
+                  <p style={{ fontSize: "11px", color: "#888780", margin: "6px 0 0" }}>
+                    Stored on the publisher record for audit. Not sent to the publisher.
+                  </p>
+                </div>
+
+                {suspendError && (
+                  <div style={{
+                    background: "#FDEDEC", border: "1px solid #F5B7B1",
+                    borderRadius: "8px", padding: "10px 12px", marginBottom: "16px",
+                    fontSize: "12px", color: "#922B21",
+                  }}>
+                    {suspendError}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button
+                    onClick={() => { setSuspendTarget(null); setSuspendReason(""); setSuspendError(""); }}
+                    disabled={suspendSubmitting}
+                    style={{
+                      flex: 1, background: "white", color: "#5F5E5A",
+                      border: "0.5px solid #e5e4dc", borderRadius: "100px",
+                      padding: "12px", fontSize: "13px", cursor: suspendSubmitting ? "default" : "pointer",
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSuspendPublisher}
+                    disabled={suspendSubmitting}
+                    style={{
+                      flex: 2, background: suspendSubmitting ? "#F5B7B1" : "#A32D2D",
+                      color: "white", border: "none", borderRadius: "100px",
+                      padding: "12px", fontSize: "13px", fontWeight: 500,
+                      cursor: suspendSubmitting ? "default" : "pointer",
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}
+                  >
+                    {suspendSubmitting ? "Suspending..." : "Confirm — remove all books"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              // ── Result screen ──
+              <>
+                <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "22px", color: "#2C2C2A", margin: "0 0 6px" }}>
+                  Publisher suspended
+                </h3>
+                <p style={{ fontSize: "13px", color: "#888780", margin: "0 0 20px" }}>
+                  <strong>{suspendResult.publisher_name}</strong>
+                </p>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "20px" }}>
+                  {[
+                    { label: "Books deleted", value: suspendResult.summary?.books_deleted || 0, color: "#0F6E56" },
+                    { label: "Failed", value: suspendResult.summary?.books_failed || 0, color: suspendResult.summary?.books_failed > 0 ? "#A32D2D" : "#888780" },
+                    { label: "Total", value: suspendResult.summary?.total_books || 0, color: "#2C2C2A" },
+                  ].map((s, i) => (
+                    <div key={i} style={{ background: "#f9f9f7", borderRadius: "10px", padding: "14px", textAlign: "center" as const }}>
+                      <p style={{ fontSize: "24px", fontFamily: "'DM Serif Display', serif", color: s.color, margin: "0 0 4px" }}>{s.value}</p>
+                      <p style={{ fontSize: "11px", color: "#888780", margin: 0, textTransform: "uppercase" as const, letterSpacing: "0.5px" }}>{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {suspendResult.failed_books && suspendResult.failed_books.length > 0 && (
+                  <div style={{
+                    background: "#FAEEDA", border: "1px solid #EDC9A5",
+                    borderRadius: "8px", padding: "12px 14px", marginBottom: "16px",
+                  }}>
+                    <p style={{ fontSize: "12px", color: "#854F0B", margin: "0 0 6px", fontWeight: 600 }}>
+                      Some books failed to delete:
+                    </p>
+                    {suspendResult.failed_books.slice(0, 3).map((fb: any, i: number) => (
+                      <p key={i} style={{ fontSize: "12px", color: "#854F0B", margin: "2px 0" }}>
+                        • {fb.title} — {fb.reason}
+                      </p>
+                    ))}
+                    {suspendResult.failed_books.length > 3 && (
+                      <p style={{ fontSize: "11px", color: "#854F0B", margin: "4px 0 0" }}>
+                        ...and {suspendResult.failed_books.length - 3} more.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => {
+                    setSuspendTarget(null);
+                    setSuspendReason("");
+                    setSuspendError("");
+                    setSuspendResult(null);
+                  }}
+                  style={{
+                    width: "100%", background: "#2C2C2A", color: "white",
+                    border: "none", borderRadius: "100px", padding: "12px",
+                    fontSize: "13px", fontWeight: 500, cursor: "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >
+                  Done
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
