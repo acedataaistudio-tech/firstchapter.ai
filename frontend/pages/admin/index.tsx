@@ -352,24 +352,39 @@ export default function AdminDashboard() {
   };
 
   // ─── Compute the user's effective role from cross-table data ─────────
-  // The `users.role` column in DB is almost always "reader" regardless of
-  // actual user-type. We derive the real role by cross-referencing
-  // publishers and institutions tables (fetched separately).
+  // The `users.role` column in DB is mostly "reader" regardless of actual
+  // user-type, but the /admin/users endpoint already returns "student" for
+  // users with institution_id set. We just need to overlay Publisher and
+  // Institution Admin on top.
   //
-  // Priority order matters: a user who is both a publisher AND has an
-  // institution_id (rare but possible) is displayed as Publisher first.
+  // Match strategies:
+  //  - Publisher:           by email (publishers endpoint doesn't return clerk_user_id)
+  //  - Institution Admin:   by clerk_user_id (institutions endpoint includes it)
+  //
+  // Priority order: Publisher > Institution Admin > Student > Reader.
+  // This means a user who is BOTH a publisher AND in an institution shows
+  // as Publisher first (the more specific identity).
   const getEffectiveRole = (user: any): string => {
     if (!user) return "Reader";
     if (user.status === "suspended") return "Suspended";
 
+    const userEmail = (user.email || "").toLowerCase();
     const userId = user.id;
-    const isPublisher = allPublishers.some(p => p.clerk_user_id === userId);
+
+    // Publisher match — by email (publishers admin endpoint exposes email, not clerk_user_id)
+    const isPublisher = userEmail && allPublishers.some(p =>
+      (p.email || "").toLowerCase() === userEmail
+    );
     if (isPublisher) return "Publisher";
 
+    // Institution Admin match — by clerk_user_id
     const isInstitutionAdmin = approvedInstitutions.some(i => i.clerk_user_id === userId);
     if (isInstitutionAdmin) return "Institution Admin";
 
-    if (user.institution_id) return "Student";
+    // The backend admin endpoint already labels institution_id-having users
+    // as "student". Trust that, plus fall back to institution_id check.
+    if (user.role === "student" || user.institution_id) return "Student";
+
     return "Reader";
   };
 
