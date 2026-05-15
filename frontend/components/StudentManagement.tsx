@@ -173,6 +173,17 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
     loadStudents();
   }, [institutionId, filter]);
 
+  // Auto-refresh student list when the tab regains focus.
+  // Fixes stale state when an invited student claims their invite in a
+  // separate session — admin's list updates as soon as they switch back.
+  useEffect(() => {
+    const handleFocus = () => {
+      loadStudents();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [institutionId, filter]);
+
   // Auto-dismiss toast after 4 seconds
   useEffect(() => {
     if (toast) {
@@ -197,14 +208,16 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
 
   // ════════════════════════════════════════════════════════════
   // ✅ FIX: Properly extract backend error detail
+  // Returns { ok: boolean, errorMsg?: string } so callers can react to
+  // specific errors (e.g., close modal on "already approved").
   // ════════════════════════════════════════════════════════════
   const performApprovalAction = async (
     payload: Record<string, any>,
     successMessage: string
-  ) => {
+  ): Promise<{ ok: boolean; errorMsg?: string }> => {
     if (!userLoaded || !user?.id) {
       setToast({ type: 'error', message: 'Please wait — user info is still loading.' });
-      return false;
+      return { ok: false, errorMsg: 'user-not-loaded' };
     }
 
     setSubmitting(true);
@@ -224,24 +237,37 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
 
       if (!res.ok) {
         const detail = data?.detail || `Request failed with status ${res.status}`;
+        const errorMsg = typeof detail === 'string' ? detail : JSON.stringify(detail);
         console.error('Approval action failed:', detail, data);
-        throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+        throw new Error(errorMsg);
       }
 
       setToast({ type: 'success', message: successMessage });
       await loadStudents();
-      return true;
+      return { ok: true };
     } catch (err: any) {
-      setToast({ type: 'error', message: err.message || 'Action failed' });
-      return false;
+      const errorMsg = err.message || 'Action failed';
+      setToast({ type: 'error', message: errorMsg });
+      return { ok: false, errorMsg };
     } finally {
       setSubmitting(false);
     }
   };
 
+  const isStaleError = (msg: string | undefined): boolean => {
+    if (!msg) return false;
+    const m = msg.toLowerCase();
+    return (
+      m.includes('already approved') ||
+      m.includes('already rejected') ||
+      m.includes('not found') ||
+      m.includes('does not exist')
+    );
+  };
+
   const handleApproveConfirm = async (validityYears: number | null) => {
     if (!approvingStudent) return;
-    const ok = await performApprovalAction(
+    const result = await performApprovalAction(
       {
         student_id: approvingStudent.id,
         action: 'approve',
@@ -251,12 +277,17 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
         validityYears ? ` for ${validityYears} year${validityYears > 1 ? 's' : ''}` : ''
       }!`
     );
-    if (ok) setApprovingStudent(null);
+    if (result.ok || isStaleError(result.errorMsg)) {
+      // Close modal on success OR on stale errors (UI was out of date)
+      setApprovingStudent(null);
+      if (!result.ok) await loadStudents();  // sync if it was a stale-error close
+    }
+    // Otherwise keep modal open so admin can retry / cancel
   };
 
   const handleRejectConfirm = async (reason: string) => {
     if (!rejectingStudent || !reason) return;
-    const ok = await performApprovalAction(
+    const result = await performApprovalAction(
       {
         student_id: rejectingStudent.id,
         action: 'reject',
@@ -264,7 +295,10 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
       },
       `${rejectingStudent.student_name}'s application rejected.`
     );
-    if (ok) setRejectingStudent(null);
+    if (result.ok || isStaleError(result.errorMsg)) {
+      setRejectingStudent(null);
+      if (!result.ok) await loadStudents();
+    }
   };
 
   const filteredStudents = students.filter(

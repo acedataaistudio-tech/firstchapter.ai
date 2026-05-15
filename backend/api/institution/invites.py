@@ -388,26 +388,83 @@ def claim_invite(
         raise HTTPException(status_code=500, detail="Could not activate your account.")
 
     # ── Upsert the users table (so this student exists in public.users) ──
+    # Three cases to handle:
+    # 1. No row exists for this clerk_id AND no row for this email → INSERT
+    # 2. Row exists for this clerk_id → UPDATE
+    # 3. Row exists for this email under a DIFFERENT clerk_id (Clerk identity
+    #    recreated / stale orphan record) → CONFLICT. We can't simply insert
+    #    because users.email has a UNIQUE constraint. Surface a clear error.
+    user_payload = {
+        "institution_id": invite["institution_id"],
+        "plan_type": "institution",
+        "role": "reader",
+        "updated_at": now_iso,
+    }
+    users_upsert_failed = False
+    users_upsert_reason = None
+
     try:
-        existing_user = db.table("users").select("id").eq("id", x_user_id).execute()
-        user_payload = {
-            "institution_id": invite["institution_id"],
-            "plan_type": "institution",
-            "role": "reader",
-            "updated_at": now_iso,
-        }
-        if existing_user.data and len(existing_user.data) > 0:
+        existing_by_id = db.table("users")\
+            .select("id, email")\
+            .eq("id", x_user_id)\
+            .execute()
+
+        if existing_by_id.data and len(existing_by_id.data) > 0:
+            # Case 2: row exists for this clerk id — UPDATE it
             db.table("users").update(user_payload).eq("id", x_user_id).execute()
         else:
-            db.table("users").insert({
-                "id": x_user_id,
-                "email": clerk_email,
-                "queries_used": 0,
-                "queries_limit": 999999,
-                **user_payload,
-            }).execute()
+            # No row for this clerk id — check if email is taken by another id
+            existing_by_email = db.table("users")\
+                .select("id, email")\
+                .eq("email", clerk_email)\
+                .execute()
+
+            if existing_by_email.data and len(existing_by_email.data) > 0:
+                # Case 3: stale row for this email under a different clerk id.
+                # Don't silently fail and don't auto-overwrite — surface clearly.
+                stale_id = existing_by_email.data[0].get("id")
+                users_upsert_failed = True
+                users_upsert_reason = (
+                    f"This email is already linked to another account in the system "
+                    f"(stale id: {stale_id[:12]}...). Please contact support to resolve "
+                    f"this conflict before continuing."
+                )
+                print(
+                    f"❌ users-table email collision during claim: "
+                    f"email={clerk_email}, new_clerk_id={x_user_id}, stale_id={stale_id}"
+                )
+            else:
+                # Case 1: truly fresh — INSERT
+                db.table("users").insert({
+                    "id": x_user_id,
+                    "email": clerk_email,
+                    "queries_used": 0,
+                    "queries_limit": 999999,
+                    **user_payload,
+                }).execute()
     except Exception as e:
-        print(f"⚠️ Could not upsert user row (non-fatal): {e}")
+        users_upsert_failed = True
+        users_upsert_reason = "Could not link your account. Please contact support."
+        print(f"❌ users-table upsert failed during claim: {e}")
+
+    # If users-table linkage failed, we must surface this to the user.
+    # The institution_students row was already updated to 'approved' above,
+    # but without the users-table row the home page access gate will reject.
+    if users_upsert_failed:
+        # Roll back the institution_students activation so the user can retry
+        # cleanly after support resolves the conflict.
+        try:
+            db.table("institution_students").update({
+                "application_status": "pending",
+                "is_active": False,
+                "user_id": None,
+                "invite_claimed_at": None,
+                "approved_at": None,
+            }).eq("id", invite["id"]).execute()
+            print(f"↩️ Rolled back institution_students activation for {clerk_email}")
+        except Exception as e:
+            print(f"⚠️ Rollback of institution_students also failed: {e}")
+        raise HTTPException(status_code=409, detail=users_upsert_reason)
 
     # ── Fire in-app notification to institution admin ──────
     try:
