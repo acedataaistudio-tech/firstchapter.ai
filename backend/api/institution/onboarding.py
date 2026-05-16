@@ -201,14 +201,26 @@ async def submit_institution_application(request: InstitutionOnboardingRequest):
     db = get_db()
     
     try:
-        # Check if user already has pending/approved application
+        # ─── Idempotency check on clerk_user_id ────────────────────────
+        # An admin should only ever have ONE institutions row. Handle all
+        # possible status values:
+        #   pending    → block (already submitted)
+        #   approved   → block (already active)
+        #   rejected   → allow retry; UPDATE the existing row back to pending
+        #   suspended  → block (admin action — needs platform admin to unsuspend)
+        #   deleted    → allow retry; UPDATE the existing row back to pending
+        #
+        # This prevents the duplicate-row accumulation we saw historically
+        # (5 institutions for same clerk_user_id over a few days of testing).
         existing = db.table("institutions")\
             .select("id, application_status")\
             .eq("clerk_user_id", request.clerk_user_id)\
             .execute()
-        
+
+        existing_row_id_to_reuse = None  # If set, we UPDATE this row instead of inserting
+
         if existing.data and len(existing.data) > 0:
-            status = existing.data[0].get("application_status")
+            status = (existing.data[0].get("application_status") or "").lower()
             if status == "pending":
                 raise HTTPException(
                     status_code=400,
@@ -218,6 +230,21 @@ async def submit_institution_application(request: InstitutionOnboardingRequest):
                 raise HTTPException(
                     status_code=400,
                     detail="Your institution is already registered."
+                )
+            elif status == "suspended":
+                raise HTTPException(
+                    status_code=403,
+                    detail="Your institution has been suspended. Please contact support to re-apply."
+                )
+            elif status in ("rejected", "deleted"):
+                # Allow retry — reuse the existing row to avoid duplicates
+                existing_row_id_to_reuse = existing.data[0]["id"]
+                print(f"ℹ️ Reusing existing {status} institution row {existing_row_id_to_reuse} for retry")
+            else:
+                # Unknown status — safer to block than create another row
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Your application is in an unrecognized state ('{status}'). Please contact support."
                 )
         
         # Determine institution name
@@ -276,12 +303,32 @@ async def submit_institution_application(request: InstitutionOnboardingRequest):
             "estimated_students": request.estimated_students,
         }
         
-        result = db.table("institutions").insert(institution_data).execute()
-        
-        if not result.data or len(result.data) == 0:
-            raise HTTPException(status_code=500, detail="Failed to create application")
-        
-        institution_id = result.data[0]["id"]
+        # ─── Insert OR Update based on idempotency check ───────────────
+        # If we found a rejected/deleted row earlier, UPDATE it in place
+        # (resets status to pending, refreshes all fields). Otherwise INSERT.
+        if existing_row_id_to_reuse:
+            # Clear out fields specific to the previous attempt's rejected/deleted state
+            institution_data["application_status"] = "pending"
+            institution_data["application_submitted_at"] = datetime.utcnow().isoformat()
+            institution_data["rejected_at"] = None
+            institution_data["rejection_reason"] = None
+            institution_data["approved_at"] = None
+            institution_data["approved_by"] = None
+            # is_active should be set back to true on a fresh application
+            institution_data["is_active"] = True
+
+            result = db.table("institutions")\
+                .update(institution_data)\
+                .eq("id", existing_row_id_to_reuse)\
+                .execute()
+            if not result.data or len(result.data) == 0:
+                raise HTTPException(status_code=500, detail="Failed to update existing application")
+            institution_id = existing_row_id_to_reuse
+        else:
+            result = db.table("institutions").insert(institution_data).execute()
+            if not result.data or len(result.data) == 0:
+                raise HTTPException(status_code=500, detail="Failed to create application")
+            institution_id = result.data[0]["id"]
         
         # Create notification for platform admins
         try:
