@@ -100,8 +100,22 @@ async def create_subscription(
 
         # 🔗 Ensure the users table has a row for this user, and link it to
         # the new subscription so /users/access-state finds it.
-        # Without this, access-state returns 'no_access' for fresh signups.
+        # Without this link, access-state returns 'no_access' for fresh signups.
+        #
+        # Three failure modes we explicitly handle:
+        # 1. Email is missing/empty   → synthesize `{user_id}@clerk.user` to satisfy NOT NULL/UNIQUE
+        # 2. Email collision in users → fall back to UPDATE by id, OR if no id-match either, surface the error
+        # 3. Generic exception        → surface so the frontend knows signup didn't finish cleanly
+        link_failed = False
+        link_failure_reason = None
         try:
+            # Synthetic email fallback. Matches existing pattern in your data
+            # (e.g. `user_3CwvsEsPZuXYcfPFaChxm8tBQ76@clerk.user`). Prevents
+            # the empty-string UNIQUE collision that's been breaking signups.
+            effective_email = (request.email or "").strip()
+            if not effective_email:
+                effective_email = f"{request.user_id}@clerk.user"
+
             user_check = db.table("users").select("id, email").eq("id", request.user_id).execute()
             existing_user = user_check.data[0] if user_check.data and len(user_check.data) > 0 else None
 
@@ -112,24 +126,53 @@ async def create_subscription(
                 "updated_at": datetime.utcnow().isoformat(),
             }
 
-            # Only set email if provided AND not already on file (don't
-            # overwrite richer existing data with what frontend sent).
-            if request.email and (not existing_user or not existing_user.get("email")):
+            # Only set email if we have a real one AND existing user doesn't have a real email.
+            # Don't overwrite a real email with a synthetic placeholder.
+            if request.email and (not existing_user or not existing_user.get("email") or existing_user.get("email", "").endswith("@clerk.user")):
                 user_payload["email"] = request.email
 
             if existing_user:
                 db.table("users").update(user_payload).eq("id", request.user_id).execute()
             else:
-                # New user record — needs minimum fields
+                # New user record — minimum fields plus the link
+                # Check email collision explicitly before INSERT to give a clear error
+                if effective_email:
+                    collision_check = db.table("users").select("id").eq("email", effective_email).execute()
+                    if collision_check.data and len(collision_check.data) > 0:
+                        # Same email exists under a DIFFERENT id — Clerk identity recreated
+                        # or stale orphan row. Don't try to insert (would fail with UNIQUE).
+                        # Surface this rather than swallow.
+                        stale_id = collision_check.data[0].get("id")
+                        raise RuntimeError(
+                            f"Email '{effective_email}' is already linked to a different account "
+                            f"({stale_id[:12]}...). Cannot create new user row without resolving conflict."
+                        )
+
                 db.table("users").insert({
-                    "id": request.user_id,
-                    "email": request.email or "",
-                    "queries_used": 0,
+                    "id":            request.user_id,
+                    "email":         effective_email,
+                    "queries_used":  0,
                     "queries_limit": 999999,
                     **user_payload,
                 }).execute()
-        except Exception as e:
-            print(f"⚠️ Could not link subscription to user (non-fatal): {e}")
+        except Exception as link_err:
+            link_failed = True
+            link_failure_reason = str(link_err)
+            print(f"❌ Could not link subscription to user: {link_err}")
+
+        # If the user-row linkage failed, the subscription exists but the
+        # user can't actually access anything. Roll back the subscription
+        # rather than leave inconsistent state.
+        if link_failed:
+            try:
+                db.table("subscriptions").delete().eq("id", subscription["id"]).execute()
+                print(f"↩️ Rolled back orphaned subscription {subscription['id']}")
+            except Exception as rollback_err:
+                print(f"⚠️ Rollback of orphaned subscription failed: {rollback_err}")
+            raise HTTPException(
+                status_code=409,
+                detail=f"Could not complete subscription setup: {link_failure_reason}"
+            )
 
         # ✉️ Send welcome email (non-fatal — never blocks subscription creation)
         try:
