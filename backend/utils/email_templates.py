@@ -652,6 +652,81 @@ If you weren't expecting this invitation or have questions, please reach out to
     }
 
 
+def build_student_removed_email(
+    student_name: str,
+    institution_name: str,
+) -> dict:
+    """
+    Sent when an institution admin removes an existing approved student.
+
+    Tone: warm but factual. The student isn't being kicked off the platform —
+    they're being moved to a free Reader plan. Make sure they know their
+    account, queries, and saved answers are preserved.
+
+    Honest framing: removal is usually a routine administrative action
+    (e.g., a student graduated, left the program, or got institutional access
+    via a different account). We don't speculate about reasons in the email —
+    the institution admin knows; the student knows; we just confirm what
+    happened and what continues to work.
+    """
+    content = _heading(f"Your access at {institution_name} has changed.")
+
+    content += _para(
+        f"Dear {student_name},<br><br>"
+        f"An administrator at <strong>{institution_name}</strong> has removed your "
+        f"institutional access on Firstchapter.ai. This change is effective immediately."
+    )
+
+    content += _info_box(
+        "<strong>Your account remains active.</strong><br>"
+        "You've been moved to our <strong>Free Reader</strong> plan. "
+        "All your previous queries and saved answers are preserved — "
+        "nothing has been deleted from your account.",
+        accent=BRAND_GREEN,
+    )
+
+    content += _para(
+        "You can continue using Firstchapter right away. If you believe this "
+        "change was made in error, please reach out to your institution administrator "
+        "directly to discuss."
+    )
+
+    content += _btn("Continue to Firstchapter", f"{APP_BASE_URL}")
+
+    content += _para(
+        f"For any platform-related questions, you can reach us at "
+        f'<a href="mailto:{SUPPORT_EMAIL}" style="color:{BRAND_GREEN}; text-decoration:none;">{SUPPORT_EMAIL}</a>.',
+        muted=True,
+    )
+
+    text = f"""Your access at {institution_name} has changed.
+
+Dear {student_name},
+
+An administrator at {institution_name} has removed your institutional access
+on Firstchapter.ai. This change is effective immediately.
+
+Your account remains active. You've been moved to our Free Reader plan.
+All your previous queries and saved answers are preserved — nothing has been
+deleted from your account.
+
+You can continue using Firstchapter right away. If you believe this change
+was made in error, please reach out to your institution administrator
+directly to discuss.
+
+Continue to Firstchapter: {APP_BASE_URL}
+
+For any platform-related questions, write to {SUPPORT_EMAIL}.
+"""
+
+    return {
+        "subject": f"Your access at {institution_name} has changed",
+        "html": _wrap_layout(content, preheader="You've been moved to a free Reader account. Your queries and history are preserved."),
+        "text": text,
+        "tags": {"category": "student_removal", "stage": "removed"},
+    }
+
+
 # ══════════════════════════════════════════════════════════════════
 # PUBLISHER EMAILS
 # ══════════════════════════════════════════════════════════════════

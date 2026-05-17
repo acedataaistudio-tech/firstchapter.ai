@@ -782,10 +782,12 @@ async def remove_student_from_institution(request: StudentRemovalRequest):
             .eq("id", user_id)\
             .execute()
 
-        # ─── 7. Send notification email (non-fatal — same pattern as subscriptions.py) ─
-        # Lets the student know they've been removed and what their new access looks like.
+        # ─── 7. Send notification email (non-fatal — same pattern as approve/reject) ─
+        # Uses the build_student_removed_email template so styling matches the rest
+        # of the platform's emails (branded layout, mobile-friendly, plain-text fallback).
         try:
             from utils.email_service import send_email
+            from utils.email_templates import build_student_removed_email
 
             # Look up institution name for the email body
             institution_name = "your institution"
@@ -804,47 +806,16 @@ async def remove_student_from_institution(request: StudentRemovalRequest):
 
             # Skip synthetic placeholder emails (can't be delivered)
             if recipient_email and not recipient_email.endswith("@clerk.user"):
-                subject = f"Your access at {institution_name} has changed"
-
-                html_body = f"""
-                <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #2C2C2A;">
-                  <h2 style="font-family: 'DM Serif Display', serif; font-size: 22px; margin: 0 0 16px 0;">Hi {student_display_name},</h2>
-                  <p style="font-size: 15px; line-height: 1.6;">
-                    Your account at <strong>{institution_name}</strong> has been removed by an administrator.
-                    Your institutional access ended today.
-                  </p>
-                  <p style="font-size: 15px; line-height: 1.6;">
-                    The good news: your Firstchapter.ai account remains active. You've been moved to our
-                    <strong>Free Reader</strong> plan, and all your previous queries and saved answers are preserved.
-                  </p>
-                  <p style="font-size: 15px; line-height: 1.6;">
-                    You can continue using Firstchapter.ai right away —
-                    <a href="https://www.firstchapter.ai" style="color: #1D9E75; text-decoration: none;">sign in here</a>.
-                    If you believe this was a mistake, please reach out to your institution administrator
-                    or contact us at <a href="mailto:support@firstchapter.ai" style="color: #1D9E75;">support@firstchapter.ai</a>.
-                  </p>
-                  <p style="font-size: 13px; color: #888780; margin-top: 32px;">— The Firstchapter.ai team</p>
-                </div>
-                """.strip()
-
-                text_body = (
-                    f"Hi {student_display_name},\n\n"
-                    f"Your account at {institution_name} has been removed by an administrator. "
-                    f"Your institutional access ended today.\n\n"
-                    f"The good news: your Firstchapter.ai account remains active. You've been moved to "
-                    f"our Free Reader plan, and all your previous queries and saved answers are preserved.\n\n"
-                    f"Sign in at https://www.firstchapter.ai to continue. If you believe this was a "
-                    f"mistake, please reach out to your institution administrator or contact us at "
-                    f"support@firstchapter.ai.\n\n"
-                    f"— The Firstchapter.ai team"
+                email = build_student_removed_email(
+                    student_name=student_display_name,
+                    institution_name=institution_name,
                 )
-
                 send_email(
                     to=recipient_email,
-                    subject=subject,
-                    html=html_body,
-                    text=text_body,
-                    tags=["student-removed", "transactional"],
+                    subject=email["subject"],
+                    html=email["html"],
+                    text=email["text"],
+                    tags=email.get("tags"),
                 )
         except Exception as e:
             print(f"⚠️ Student-removed email skipped (non-fatal): {e}")
