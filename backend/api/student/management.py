@@ -38,6 +38,17 @@ class BulkStudentUpload(BaseModel):
     students: List[dict]
 
 
+class StudentRemovalRequest(BaseModel):
+    """
+    Request to remove a student from an institution.
+    Demotes them to a regular Reader on the Free plan rather than hard-deleting.
+    Their account, queries, and history are preserved.
+    """
+    student_id: str               # institution_students.id (NOT user_id)
+    institution_id: str           # For cross-institution safety check
+    admin_user_id: str            # Caller's clerk_user_id (institution admin)
+
+
 # ──────────────────────────────────────────────────────────────────
 # Numeric helpers — Postgres returns numeric/Decimal as strings via Supabase
 # ──────────────────────────────────────────────────────────────────
@@ -605,3 +616,250 @@ async def bulk_upload_students(request: BulkStudentUpload):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Bulk upload failed: {str(e)}")
+
+
+@router.post("/institution/students/remove")
+async def remove_student_from_institution(request: StudentRemovalRequest):
+    """
+    Remove a student from an institution by demoting them to a regular Reader
+    on the Free plan. No data loss — their account, queries, and saved answers
+    are preserved.
+
+    Operations performed (matches the order used by /student/cleanup-expired
+    for consistency, with an added step to create a new Free subscription so
+    the user retains usable access):
+
+      1. Verify the student belongs to the claimed institution
+      2. Mark institution_students row inactive (status preserves audit trail)
+      3. Mark institution_users row inactive (clears per-student token allocation)
+      4. Look up the Free package
+      5. Create a new Free subscriptions row for the user
+      6. Update users row: institution_id=NULL, plan_type='free',
+         subscription_id=<new free sub>, role='reader'
+
+    Idempotency: if the institution_students row is already inactive, the
+    endpoint returns success without re-doing the work, so a double-click
+    can't create duplicate Free subscriptions for the same user.
+    """
+    from database.crud import get_db
+    db = get_db()
+
+    try:
+        # ─── 1. Verify student exists and belongs to the claimed institution ─
+        student_query = db.table("institution_students")\
+            .select("id, user_id, institution_id, student_name, student_email, is_active, application_status")\
+            .eq("id", request.student_id)\
+            .execute()
+
+        if not student_query.data or len(student_query.data) == 0:
+            raise HTTPException(status_code=404, detail="Student record not found")
+
+        student = student_query.data[0]
+
+        # Cross-institution safety — admin can only remove students from their own institution
+        if student["institution_id"] != request.institution_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Student does not belong to the specified institution"
+            )
+
+        user_id = student.get("user_id")
+        if not user_id:
+            # Edge case: student row exists but never linked to a user (invite not claimed yet).
+            # No user demotion needed — just deactivate the institution_students row.
+            db.table("institution_students")\
+                .update({"is_active": False, "updated_at": datetime.utcnow().isoformat()})\
+                .eq("id", request.student_id)\
+                .execute()
+            return {
+                "success": True,
+                "message": f"Removed {student.get('student_name')} (invite never claimed — no user account to demote)",
+                "user_demoted": False,
+            }
+
+        # Idempotency check — if the student row is already inactive, don't re-run.
+        # Prevents duplicate Free subscriptions on accidental double-click.
+        if not student.get("is_active", True):
+            return {
+                "success": True,
+                "message": f"{student.get('student_name')} was already removed",
+                "user_demoted": False,
+                "already_inactive": True,
+            }
+
+        now_iso = datetime.utcnow().isoformat()
+
+        # ─── 2. Mark institution_students row inactive ────────────────────
+        # Matches the cleanup_expired_students pattern: soft-deactivate
+        # rather than hard-delete to preserve audit.
+        db.table("institution_students")\
+            .update({"is_active": False, "updated_at": now_iso})\
+            .eq("id", request.student_id)\
+            .execute()
+
+        # ─── 3. Mark institution_users row inactive (token allocation) ────
+        # Non-fatal — may not exist for invite-flow students.
+        try:
+            db.table("institution_users")\
+                .update({"is_active": False})\
+                .eq("user_id", user_id)\
+                .eq("institution_id", student["institution_id"])\
+                .execute()
+        except Exception as e:
+            print(f"⚠️ institution_users deactivation failed (non-fatal): {e}")
+
+        # ─── 4. Look up Free package ──────────────────────────────────────
+        free_package = None
+        try:
+            pkg_query = db.table("packages")\
+                .select("id, name, price_yearly, price_monthly")\
+                .eq("name", "Free")\
+                .limit(1)\
+                .execute()
+            if pkg_query.data and len(pkg_query.data) > 0:
+                free_package = pkg_query.data[0]
+        except Exception as e:
+            print(f"⚠️ Free package lookup failed: {e}")
+
+        if not free_package:
+            # We can still demote the user, but without a subscription_id they'll
+            # hit the access-state gate as 'no_access'. Surface this rather than
+            # silently leaving them stranded.
+            raise HTTPException(
+                status_code=500,
+                detail="Free package not found in packages table — cannot complete demotion"
+            )
+
+        # ─── 5. Create a new Free subscriptions row ───────────────────────
+        # Mirrors backend/api/subscriptions.py create_subscription for the Free tier.
+        # Uses the same canonical token_economics formula so the demoted user gets
+        # exactly what a fresh Free signup gets — never hardcoded numbers.
+        from utils.token_economics import compute_token_allocation
+
+        price_paise = free_package.get("price_monthly", 0) or 0
+        input_tokens, output_tokens = compute_token_allocation(price_paise, billing_period="monthly")
+
+        free_sub_data = {
+            "user_id": user_id,
+            "package_id": free_package["id"],
+            "package_name": "Free",
+            "start_date": now_iso,
+            "end_date": (datetime.utcnow() + timedelta(days=36500)).isoformat(),  # ~lifetime, matches subscriptions.py
+            "is_active": True,
+            "input_tokens_allocated": input_tokens,
+            "output_tokens_allocated": output_tokens,
+            "input_tokens_used": 0,
+            "output_tokens_used": 0,
+        }
+
+        # Deactivate any other active subscriptions for this user first to
+        # match the create_subscription invariant (one active sub per user).
+        try:
+            db.table("subscriptions")\
+                .update({"is_active": False})\
+                .eq("user_id", user_id)\
+                .eq("is_active", True)\
+                .execute()
+        except Exception as e:
+            print(f"⚠️ Deactivating prior subscriptions failed (non-fatal): {e}")
+
+        sub_result = db.table("subscriptions").insert(free_sub_data).execute()
+        if not sub_result.data or len(sub_result.data) == 0:
+            raise HTTPException(status_code=500, detail="Failed to create Free subscription")
+        new_subscription_id = sub_result.data[0]["id"]
+
+        # ─── 6. Update users row — demote to Free Reader ──────────────────
+        # Critical: subscription_id MUST be set to the new Free sub or the user
+        # will hit "No active access" on next page load.
+        db.table("users")\
+            .update({
+                "institution_id": None,
+                "subscription_id": new_subscription_id,
+                "plan_type": "free",
+                "role": "reader",
+                "updated_at": now_iso,
+            })\
+            .eq("id", user_id)\
+            .execute()
+
+        # ─── 7. Send notification email (non-fatal — same pattern as subscriptions.py) ─
+        # Lets the student know they've been removed and what their new access looks like.
+        try:
+            from utils.email_service import send_email
+
+            # Look up institution name for the email body
+            institution_name = "your institution"
+            try:
+                inst_row = db.table("institutions")\
+                    .select("name")\
+                    .eq("id", student["institution_id"])\
+                    .execute()
+                if inst_row.data and len(inst_row.data) > 0 and inst_row.data[0].get("name"):
+                    institution_name = inst_row.data[0]["name"]
+            except Exception:
+                pass  # institution_name fallback already set
+
+            recipient_email = student.get("student_email")
+            student_display_name = student.get("student_name") or "there"
+
+            # Skip synthetic placeholder emails (can't be delivered)
+            if recipient_email and not recipient_email.endswith("@clerk.user"):
+                subject = f"Your access at {institution_name} has changed"
+
+                html_body = f"""
+                <div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #2C2C2A;">
+                  <h2 style="font-family: 'DM Serif Display', serif; font-size: 22px; margin: 0 0 16px 0;">Hi {student_display_name},</h2>
+                  <p style="font-size: 15px; line-height: 1.6;">
+                    Your account at <strong>{institution_name}</strong> has been removed by an administrator.
+                    Your institutional access ended today.
+                  </p>
+                  <p style="font-size: 15px; line-height: 1.6;">
+                    The good news: your Firstchapter.ai account remains active. You've been moved to our
+                    <strong>Free Reader</strong> plan, and all your previous queries and saved answers are preserved.
+                  </p>
+                  <p style="font-size: 15px; line-height: 1.6;">
+                    You can continue using Firstchapter.ai right away —
+                    <a href="https://www.firstchapter.ai" style="color: #1D9E75; text-decoration: none;">sign in here</a>.
+                    If you believe this was a mistake, please reach out to your institution administrator
+                    or contact us at <a href="mailto:support@firstchapter.ai" style="color: #1D9E75;">support@firstchapter.ai</a>.
+                  </p>
+                  <p style="font-size: 13px; color: #888780; margin-top: 32px;">— The Firstchapter.ai team</p>
+                </div>
+                """.strip()
+
+                text_body = (
+                    f"Hi {student_display_name},\n\n"
+                    f"Your account at {institution_name} has been removed by an administrator. "
+                    f"Your institutional access ended today.\n\n"
+                    f"The good news: your Firstchapter.ai account remains active. You've been moved to "
+                    f"our Free Reader plan, and all your previous queries and saved answers are preserved.\n\n"
+                    f"Sign in at https://www.firstchapter.ai to continue. If you believe this was a "
+                    f"mistake, please reach out to your institution administrator or contact us at "
+                    f"support@firstchapter.ai.\n\n"
+                    f"— The Firstchapter.ai team"
+                )
+
+                send_email(
+                    to=recipient_email,
+                    subject=subject,
+                    html=html_body,
+                    text=text_body,
+                    tags=["student-removed", "transactional"],
+                )
+        except Exception as e:
+            print(f"⚠️ Student-removed email skipped (non-fatal): {e}")
+
+        return {
+            "success": True,
+            "message": f"{student.get('student_name')} has been removed from the institution and is now a free Reader.",
+            "user_demoted": True,
+            "user_id": user_id,
+            "new_subscription_id": new_subscription_id,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to remove student: {str(e)}")
