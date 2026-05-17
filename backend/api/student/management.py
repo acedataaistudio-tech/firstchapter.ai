@@ -221,6 +221,21 @@ async def get_institution_students(institution_id: str, status: Optional[str] = 
             else:
                 s["is_expired"] = False
 
+        # Hide "removed" students from the dashboard list.
+        # Distinguished by: status='approved' + is_active=false + not expired.
+        # Their row is kept in the DB for audit (see /institution/students/remove
+        # endpoint below), but they shouldn't surface in the Approved tab.
+        # Expired students (is_active=false but is_expired=true) are still shown
+        # with an "Expired" badge — that's the existing behavior.
+        # Rejected students (is_active=false but status='rejected') are still
+        # shown under the Rejected tab — also unchanged.
+        students = [
+            s for s in students
+            if s.get("is_active")
+            or s.get("application_status") == "rejected"
+            or s.get("is_expired")
+        ]
+
         summary = {
             "total": len(students),
             "pending": len([s for s in students if s.get("application_status") == "pending"]),
