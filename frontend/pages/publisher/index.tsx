@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/router";
 import { PublisherAccessGate } from "../../components/PublisherAccessGate";
 
@@ -13,7 +13,16 @@ const categories = [
 
 export default function PublisherDashboard() {
   const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
   const router = useRouter();
+
+  // Real sign-out — calls Clerk to terminate the session, then routes to home.
+  // Previously the Sign out button only did router.push("/") which left the
+  // user signed in (they could navigate back into the publisher dashboard).
+  const handleLogout = async () => {
+    await signOut();
+    router.push("/");
+  };
   const [activeTab, setActiveTab]           = useState("overview");
   const [showUpload, setShowUpload]         = useState(false);
   const [showAgreement, setShowAgreement]   = useState(false);
@@ -393,7 +402,7 @@ const handleUpload = async () => {
               <p style={{ fontSize: "11px", color: "#888780", margin: 0 }}>Publisher</p>
             </div>
           </div>
-          <button onClick={() => router.push("/")} style={{ fontSize: "11px", color: "#888780", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+          <button onClick={handleLogout} style={{ fontSize: "11px", color: "#888780", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
             Sign out
           </button>
         </div>
