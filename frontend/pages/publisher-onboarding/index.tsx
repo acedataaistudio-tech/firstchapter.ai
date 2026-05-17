@@ -40,7 +40,7 @@ const publisherTypes = [
 const agreementClauses = [
   { title: "1. Grant of Rights",    body: "Publisher grants Firstchapter.ai exclusive worldwide rights to convert, embed and make queryable the Work using AI technology for a period of 5 years from the date of upload." },
   { title: "2. Retained Rights",    body: "Publisher retains all print, audio, translation, film and all other rights not specifically granted herein. This agreement covers AI querying rights only." },
-  { title: "3. Revenue Share",      body: "Platform shall pay Publisher ₹0.50 per query generated on the Work, paid monthly on the 1st of each month. Minimum payout threshold: ₹500." },
+  { title: "3. Revenue Share",      body: "Platform shall pay Publisher based on output tokens generated from queries on the Work. Default rate: ₹7.50 per million output tokens (negotiable between ₹5.00-₹10.00). Minimum payout threshold: ₹500, paid monthly on the 1st. Multi-book queries split tokens equally among books used." },
   { title: "4. Content Protection", body: "Platform shall not reproduce, distribute or expose raw content. All interactions are query-response only with full attribution to the Work and Author." },
   { title: "5. Exclusivity",        body: "Publisher shall not grant AI querying rights to any competing platform during the term of this agreement." },
   { title: "6. Termination",        body: "Either party may terminate with 90 days written notice. Early termination by Publisher incurs a processing fee of ₹2,000 per book." },
@@ -454,7 +454,7 @@ export default function PublisherOnboarding() {
                 <p style={{ fontSize: "12px", fontWeight: "500", color: "#2C2C2A", margin: "0 0 10px" }}>Key terms at a glance:</p>
                 {[
                   { label: "Duration",       value: "5 years per book from upload date"      },
-                  { label: "Revenue",        value: "₹0.50 per query (50% revenue share)"    },
+                  { label: "Revenue",        value: "₹5-₹10 per 1M tokens (default ₹7.50)"    },
                   { label: "Your rights",    value: "Print, audio, translation — fully yours" },
                   { label: "Early exit",     value: "90 days notice + ₹2,000 per book fee"  },
                   { label: "Exclusivity",    value: "AI querying rights only"                 },
@@ -567,7 +567,7 @@ export default function PublisherOnboarding() {
                   <div style={{ background: "#E1F5EE", borderRadius: "10px", padding: "12px 16px", marginTop: "16px" }}>
                     <p style={{ fontSize: "12px", color: "#0F6E56", margin: 0 }}>
                       💰 Once uploaded — your book passes content moderation and goes live automatically.
-                      You start earning ₹0.50 per query immediately.
+                      You start earning based on output tokens (₹7.50 per million tokens by default).
                     </p>
                   </div>
                 </div>
