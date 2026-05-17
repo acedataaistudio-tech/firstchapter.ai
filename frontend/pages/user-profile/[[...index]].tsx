@@ -44,10 +44,10 @@ export default function UserProfilePage() {
   }
 
   // Determine user type for back navigation
-  const userRole = (user.unsafeMetadata?.role as string) || 
-                   (user.publicMetadata?.role as string) || 
+  const userRole = (user.unsafeMetadata?.role as string) ||
+                   (user.publicMetadata?.role as string) ||
                    'reader';
-  
+
   const getBackPath = () => {
     switch(userRole) {
       case 'institution': return '/institution';
@@ -123,7 +123,16 @@ export default function UserProfilePage() {
           border: "0.5px solid #e5e4dc",
           overflow: "hidden",
         }}>
-          <UserProfile 
+          {/*
+            Clerk's UserProfile component generates sub-paths internally
+            (e.g. /user-profile/security, /user-profile/account). For those
+            sub-paths to resolve, this file MUST live at
+            frontend/pages/user-profile/[[...index]].tsx (optional catch-all)
+            AND Clerk must be told the base path + routing mode below.
+          */}
+          <UserProfile
+            path="/user-profile"
+            routing="path"
             appearance={{
               elements: {
                 rootBox: {
@@ -144,7 +153,6 @@ export default function UserProfilePage() {
                 navbarButton__connectedAccounts: {
                   display: "none",
                 },
-                // Security tab now visible - may have limitations in dev mode
               },
             }}
           />
@@ -163,30 +171,10 @@ export default function UserProfilePage() {
             color: "#0F6E56",
             margin: 0,
           }}>
-            💡 <strong>Tip:</strong> You can manage your password and profile settings here. 
+            💡 <strong>Tip:</strong> You can manage your password and profile settings here.
             Changes are saved automatically.
           </p>
         </div>
-
-        {/* Dev Mode Notice */}
-        {process.env.NODE_ENV === 'development' && (
-          <div style={{
-            marginTop: "16px",
-            padding: "12px 16px",
-            background: "#FFF4E5",
-            borderRadius: "12px",
-            border: "1px solid #FFE0B2",
-          }}>
-            <p style={{
-              fontSize: "12px",
-              color: "#8B5A00",
-              margin: 0,
-            }}>
-              ⚠️ <strong>Note:</strong> Security tab features require Production Clerk keys. 
-              Some options may not work in development mode.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
