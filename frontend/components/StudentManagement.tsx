@@ -150,6 +150,63 @@ function RejectModal({
   );
 }
 
+function RemoveModal({
+  student,
+  onClose,
+  onConfirm,
+  submitting,
+}: {
+  student: any;
+  onClose: () => void;
+  onConfirm: () => void;
+  submitting: boolean;
+}) {
+  return (
+    <div style={modalOverlayStyle} onClick={onClose}>
+      <div style={modalCardStyle} onClick={(e) => e.stopPropagation()}>
+        <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '8px' }}>
+          Remove Student
+        </h2>
+        <p style={{ fontSize: '14px', color: '#3D3D3A', marginBottom: '12px' }}>
+          Remove <strong>{student.student_name}</strong> ({student.student_email}) from this institution?
+        </p>
+
+        <div style={{
+          background: '#FFF8E7',
+          border: '1px solid #FFE4A3',
+          borderRadius: '6px',
+          padding: '12px 14px',
+          marginBottom: '20px',
+          fontSize: '13px',
+          color: '#8B5A00',
+          lineHeight: 1.5,
+        }}>
+          They will lose institutional access immediately but will keep their
+          account as a <strong>free Reader</strong>. Their queries and saved
+          answers are preserved. You can re-invite them later if needed.
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} disabled={submitting} style={secondaryButtonStyle}>
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={submitting}
+            style={{
+              ...primaryButtonStyle,
+              background: '#E74C3C',
+              opacity: submitting ? 0.6 : 1,
+            }}
+          >
+            {submitting ? 'Removing...' : 'Confirm Removal'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════
@@ -163,6 +220,7 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
   // Modal state
   const [approvingStudent, setApprovingStudent] = useState<any>(null);
   const [rejectingStudent, setRejectingStudent] = useState<any>(null);
+  const [removingStudent, setRemovingStudent] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Toast/banner state for success/error feedback
@@ -298,6 +356,57 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
     if (result.ok || isStaleError(result.errorMsg)) {
       setRejectingStudent(null);
       if (!result.ok) await loadStudents();
+    }
+  };
+
+  // ════════════════════════════════════════════════════════════
+  // REMOVE STUDENT — demote to free Reader, no data loss
+  // ════════════════════════════════════════════════════════════
+  const handleRemoveConfirm = async () => {
+    if (!removingStudent) return;
+    if (!userLoaded || !user?.id) {
+      setToast({ type: 'error', message: 'Please wait — user info is still loading.' });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/institution/students/remove`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          student_id: removingStudent.id,
+          institution_id: institutionId,
+          admin_user_id: user.id,
+        }),
+      });
+
+      if (!res.ok) {
+        let errorMsg = `Failed (${res.status})`;
+        try {
+          const errData = await res.json();
+          errorMsg = errData.detail || errData.error || errorMsg;
+        } catch {}
+        setToast({ type: 'error', message: errorMsg });
+        // If the backend says student doesn't exist or is already removed,
+        // close the modal and refresh — the admin's view was stale.
+        if (res.status === 404 || /already/i.test(errorMsg)) {
+          setRemovingStudent(null);
+          await loadStudents();
+        }
+        return;
+      }
+
+      setToast({
+        type: 'success',
+        message: `${removingStudent.student_name} removed from institution.`,
+      });
+      setRemovingStudent(null);
+      await loadStudents();
+    } catch (err: any) {
+      setToast({ type: 'error', message: err?.message || 'Network error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -522,14 +631,54 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
               )}
 
               {student.application_status === 'approved' && !student.is_expired && (
-                <div style={{ padding: '6px 12px', background: '#E1F5EE', color: '#1D9E75', borderRadius: '6px', fontSize: '12px', flexShrink: 0 }}>
-                  ✓ Approved
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{ padding: '6px 12px', background: '#E1F5EE', color: '#1D9E75', borderRadius: '6px', fontSize: '12px' }}>
+                    ✓ Approved
+                  </div>
+                  <button
+                    onClick={() => setRemovingStudent(student)}
+                    title="Remove from institution"
+                    style={{
+                      padding: '6px 12px',
+                      border: '1px solid #e5e4dc',
+                      borderRadius: '6px',
+                      background: 'white',
+                      color: '#E74C3C',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <X size={12} /> Remove
+                  </button>
                 </div>
               )}
 
               {student.application_status === 'approved' && student.is_expired && (
-                <div style={{ padding: '6px 12px', background: '#FDEDEC', color: '#C0392B', borderRadius: '6px', fontSize: '12px', flexShrink: 0 }}>
-                  Expired
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{ padding: '6px 12px', background: '#FDEDEC', color: '#C0392B', borderRadius: '6px', fontSize: '12px' }}>
+                    Expired
+                  </div>
+                  <button
+                    onClick={() => setRemovingStudent(student)}
+                    title="Remove from institution"
+                    style={{
+                      padding: '6px 12px',
+                      border: '1px solid #e5e4dc',
+                      borderRadius: '6px',
+                      background: 'white',
+                      color: '#E74C3C',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <X size={12} /> Remove
+                  </button>
                 </div>
               )}
 
@@ -557,6 +706,14 @@ export function StudentManagement({ institutionId }: { institutionId: string }) 
           student={rejectingStudent}
           onClose={() => !submitting && setRejectingStudent(null)}
           onConfirm={handleRejectConfirm}
+          submitting={submitting}
+        />
+      )}
+      {removingStudent && (
+        <RemoveModal
+          student={removingStudent}
+          onClose={() => !submitting && setRemovingStudent(null)}
+          onConfirm={handleRemoveConfirm}
           submitting={submitting}
         />
       )}
